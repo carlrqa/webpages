@@ -1,0 +1,28 @@
+import React from 'react';
+
+const Feedback = () => {
+    const [feedback, setFeedback] = React.useState('');
+    const handleChange = (e) => setFeedback(e.target.value);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        // Handle feedback submission logic here
+        console.log('Feedback submitted:', feedback);
+        setFeedback('');
+    };
+
+    return (
+        <form onSubmit={handleSubmit}>
+            <label htmlFor="feedback">Your Feedback:</label>
+            <textarea
+                id="feedback"
+                value={feedback}
+                onChange={handleChange}
+                required
+            />
+            <button type="submit">Submit</button>
+        </form>
+    );
+};
+
+export default Feedback;
