@@ -1,1 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Football Central — News, Highlights &amp; Live</title>
+    <meta name="description" content="Free aggregated English football news, highlights and live streams from BBC Sport, Sky Sports, The Guardian and more.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
+    <!-- ===== HEADER ===== -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="#" class="logo">
+                <svg class="logo-ball" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="16" cy="16" r="15" fill="#fff" stroke="#38003c" stroke-width="1.5"/>
+                    <path d="M16 4 L20 10 L16 16 L12 10 Z" fill="#38003c"/>
+                    <path d="M4 12 L10 10 L16 16 L10 20 Z" fill="#38003c"/>
+                    <path d="M28 12 L22 10 L16 16 L22 20 Z" fill="#38003c"/>
+                    <path d="M8 26 L12 20 L16 16 L12 22 Z" fill="#38003c"/>
+                    <path d="M24 26 L20 20 L16 16 L20 22 Z" fill="#38003c"/>
+                </svg>
+                <span class="logo-text">English <strong>Football</strong> Central</span>
+            </a>
+
+            <nav class="main-nav" role="navigation" aria-label="Main navigation">
+                <button class="nav-btn active" data-tab="news" aria-selected="true">
+                    <span class="nav-icon">&#128240;</span> News
+                </button>
+                <button class="nav-btn" data-tab="highlights" aria-selected="false">
+                    <span class="nav-icon">&#127902;</span> Highlights
+                </button>
+                <button class="nav-btn" data-tab="live" aria-selected="false">
+                    <span class="nav-icon">&#128250;</span> Live
+                </button>
+            </nav>
+
+            <div class="header-right">
+                <button class="refresh-btn" id="refresh-btn" title="Refresh content">&#8635;</button>
+                <div class="live-pill">
+                    <span class="live-dot"></span> LIVE
+                </div>
+            </div>
+        </div>
+
+        <!-- Breaking News Ticker -->
+        <div class="ticker-bar" id="ticker-bar" aria-live="polite" aria-label="Latest news ticker">
+            <div class="ticker-label">LATEST</div>
+            <div class="ticker-track">
+                <div class="ticker-content" id="ticker-content">Loading latest headlines&hellip;</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="main-content" id="main">
+
+        <!-- NEWS TAB -->
+        <section class="tab-pane active" id="tab-news" role="tabpanel" aria-label="News">
+            <div class="section-header">
+                <div>
+                    <h1 class="section-title">Latest English Football News</h1>
+                    <p class="section-sub" id="news-updated">Fetching latest stories&hellip;</p>
+                </div>
+                <div class="source-filters" id="news-filters" role="group" aria-label="Filter by source">
+                    <span class="filter-label">Filter:</span>
+                </div>
+            </div>
+            <div class="news-grid" id="news-grid">
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+            </div>
+            <div class="load-more-wrap">
+                <button class="load-more-btn" id="news-load-more" style="display:none">Load more stories</button>
+            </div>
+        </section>
+
+        <!-- HIGHLIGHTS TAB -->
+        <section class="tab-pane" id="tab-highlights" role="tabpanel" aria-label="Highlights" hidden>
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">Latest Highlights &amp; Goals</h2>
+                    <p class="section-sub">From official English football YouTube channels</p>
+                </div>
+                <div class="source-filters" id="hl-filters" role="group" aria-label="Filter by channel">
+                    <span class="filter-label">Channel:</span>
+                </div>
+            </div>
+            <div class="highlights-grid" id="highlights-grid">
+                <div class="skeleton-card video-skeleton"></div>
+                <div class="skeleton-card video-skeleton"></div>
+                <div class="skeleton-card video-skeleton"></div>
+                <div class="skeleton-card video-skeleton"></div>
+            </div>
+        </section>
+
+        <!-- LIVE TAB -->
+        <section class="tab-pane" id="tab-live" role="tabpanel" aria-label="Live streams" hidden>
+            <div class="live-hero">
+                <h2 class="section-title">Free Live &amp; On-Demand Streams</h2>
+                <p>All streams link to official, free-to-air UK broadcaster websites. No illegal streams &mdash; no third-party hosting.</p>
+            </div>
+
+            <!-- Free broadcaster cards -->
+            <div class="broadcasters-grid" id="broadcasters-grid"></div>
+
+            <!-- Upcoming free-to-air matches -->
+            <div class="schedule-block">
+                <h3 class="schedule-title">
+                    <span class="live-dot"></span>
+                    Free-to-Air &amp; Streamed Fixtures
+                </h3>
+                <p class="schedule-note">Upcoming English football on free UK channels. Always verify on official broadcaster schedules.</p>
+                <div class="schedule-grid" id="schedule-grid"></div>
+            </div>
+
+            <!-- Where to watch guide -->
+            <div class="watch-guide">
+                <h3>Where to Watch English Football for Free</h3>
+                <div class="guide-grid">
+                    <div class="guide-card">
+                        <div class="guide-icon">&#127942;</div>
+                        <h4>FA Cup</h4>
+                        <p>BBC One &amp; BBC iPlayer show selected rounds. ITV &amp; ITVX also hold broadcast rights for certain ties.</p>
+                    </div>
+                    <div class="guide-card">
+                        <div class="guide-icon">&#127988;</div>
+                        <h4>England Internationals</h4>
+                        <p>Major England matches on BBC One and ITV. All UEFA major-tournament England games are protected on free-to-air TV.</p>
+                    </div>
+                    <div class="guide-card">
+                        <div class="guide-icon">&#128250;</div>
+                        <h4>Match of the Day</h4>
+                        <p>BBC One every Saturday night in season. Full episode on BBC iPlayer for 30 days. MOTD2 on Sunday nights.</p>
+                    </div>
+                    <div class="guide-card">
+                        <div class="guide-icon">&#127941;</div>
+                        <h4>Premier League</h4>
+                        <p>Amazon Prime streams selected PL fixtures for free without subscription during broadcast windows. Check PL &amp; Amazon sites.</p>
+                    </div>
+                    <div class="guide-card">
+                        <div class="guide-icon">&#128241;</div>
+                        <h4>EFL &amp; National League</h4>
+                        <p>Sky Sports Mix (free on Freeview/Freesat) shows selected EFL matches. iFollow streams via club websites.</p>
+                    </div>
+                    <div class="guide-card">
+                        <div class="guide-icon">&#127760;</div>
+                        <h4>YouTube Streams</h4>
+                        <p>Premier League, EFL and clubs occasionally stream matches live on official YouTube channels for free.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ===== VIDEO MODAL ===== -->
+    <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-label="Video player" hidden>
+        <div class="modal-box">
+            <button class="modal-close" id="modal-close" aria-label="Close video">&times;</button>
+            <div class="modal-video-wrap">
+                <iframe
+                    id="modal-iframe"
+                    src=""
+                    title="Football highlight"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen
+                ></iframe>
+            </div>
+            <div class="modal-meta" id="modal-meta"></div>
+        </div>
+    </div>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-top">
+                <div class="footer-brand">
+                    <svg class="logo-ball" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                        <circle cx="16" cy="16" r="15" fill="#fff" stroke="#38003c" stroke-width="1.5"/>
+                        <path d="M16 4 L20 10 L16 16 L12 10 Z" fill="#38003c"/>
+                        <path d="M4 12 L10 10 L16 16 L10 20 Z" fill="#38003c"/>
+                        <path d="M28 12 L22 10 L16 16 L22 20 Z" fill="#38003c"/>
+                        <path d="M8 26 L12 20 L16 16 L12 22 Z" fill="#38003c"/>
+                        <path d="M24 26 L20 20 L16 16 L20 22 Z" fill="#38003c"/>
+                    </svg>
+                    <span>English Football Central</span>
+                </div>
+
+                <div class="footer-credits">
+                    <h4>Content Sources &amp; Credits</h4>
+                    <div class="credits-list">
+                        <a href="https://www.bbc.co.uk/sport/football" target="_blank" rel="noopener noreferrer" class="credit-link bbc">BBC Sport</a>
+                        <a href="https://www.theguardian.com/football" target="_blank" rel="noopener noreferrer" class="credit-link guardian">The Guardian</a>
+                        <a href="https://www.skysports.com/football" target="_blank" rel="noopener noreferrer" class="credit-link sky">Sky Sports</a>
+                        <a href="https://www.youtube.com/@premierleague" target="_blank" rel="noopener noreferrer" class="credit-link pl">Premier League YT</a>
+                        <a href="https://www.youtube.com/@SkySportsFootball" target="_blank" rel="noopener noreferrer" class="credit-link sky">Sky Sports YT</a>
+                        <a href="https://www.youtube.com/@BBCSport" target="_blank" rel="noopener noreferrer" class="credit-link bbc">BBC Sport YT</a>
+                        <a href="https://www.youtube.com/@EFL" target="_blank" rel="noopener noreferrer" class="credit-link efl">EFL YT</a>
+                        <a href="https://www.youtube.com/@TheFA" target="_blank" rel="noopener noreferrer" class="credit-link fa">The FA YT</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-disclaimer">
+                <p>English Football Central aggregates publicly available RSS feeds and embeds official YouTube content. All articles, videos and streams remain the property of their respective publishers and broadcasters. This site provides links and embeds only &mdash; no content is hosted here.</p>
+                <p>RSS parsing powered by <a href="https://rss2json.com" target="_blank" rel="noopener noreferrer">rss2json.com</a>. Live TV links go to official UK broadcaster websites only.</p>
+            </div>
+
+            <p class="footer-copy">&copy; <span id="footer-year"></span> English Football Central &mdash; Free aggregator, English football only.</p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
