@@ -1,1 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InlineVideo — Sales Page Demo</title>
+  <style>
+    :root { --ink:#0b1020; --muted:#5b6478; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: #f6f8fc;
+      line-height: 1.55;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 48px 20px 80px; }
+    header { text-align: center; margin-bottom: 36px; }
+    .eyebrow { color: #2563eb; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; }
+    h1 { font-size: clamp(2rem, 5vw, 3rem); margin: 10px 0 12px; line-height: 1.1; }
+    .lede { color: var(--muted); font-size: 1.15rem; max-width: 620px; margin: 0 auto; }
+    section { margin-top: 56px; }
+    section h2 { font-size: 1.5rem; margin-bottom: 6px; }
+    section p.sub { color: var(--muted); margin-top: 0; }
+    .cta-bar {
+      margin-top: 40px; text-align: center; padding: 32px;
+      background: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(15,23,42,.06);
+    }
+    .cta-bar a {
+      display: inline-block; background: #2563eb; color: #fff; text-decoration: none;
+      font-weight: 700; padding: 14px 28px; border-radius: 999px;
+    }
+    footer { text-align: center; color: var(--muted); margin-top: 64px; font-size: .9rem; }
+    code { background: #eef1f7; padding: 2px 6px; border-radius: 6px; font-size: .9em; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Acme Studio</div>
+      <h1>Turn visitors into customers with video</h1>
+      <p class="lede">
+        The hero video plays inline and muted the moment the page loads — click it to
+        hear the pitch, browse more videos below, or jump straight to a product page.
+      </p>
+    </header>
 
+    <!-- ============================================================== -->
+    <!-- The plugin. Just one element + one script.                     -->
+    <!-- ============================================================== -->
+    <div id="hero-video"></div>
+
+    <section>
+      <h2>How it works on your page</h2>
+      <p class="sub">
+        Drop a single <code>&lt;div&gt;</code> with a <code>data-inline-video</code>
+        config (or call <code>InlineVideo.mount()</code>), add the script, and you're done.
+        Self-hosted MP4, YouTube, and Vimeo all work out of the box.
+      </p>
+    </section>
+
+    <div class="cta-bar">
+      <p style="margin-top:0;font-weight:600;font-size:1.2rem;">Ready to add it to your sales page?</p>
+      <a href="https://example.com/get-started">Get started free</a>
+    </div>
+
+    <footer>
+      Powered by <strong>InlineVideo</strong> — a dependency-free drop-in plugin. See
+      <code>README.md</code> for the full configuration reference.
+    </footer>
+  </div>
+
+  <!-- Load the plugin -->
+  <script src="inline-video-plugin.js"></script>
+  <script>
+    // Programmatic mount with a playlist. Swap these for your own videos.
+    InlineVideo.mount('#hero-video', {
+      accent: '#2563eb',
+      playlist: [
+        {
+          title: 'Meet the product in 90 seconds',
+          description: 'See how teams ship faster with Acme. Tap to unmute.',
+          // Big Buck Bunny — a freely available sample clip.
+          src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+          poster: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg',
+          badge: '1:30 • Overview',
+          cta: [
+            { label: 'Start free trial', url: 'https://example.com/signup' },
+            { label: 'Read the docs', url: 'https://example.com/docs' }
+          ]
+        },
+        {
+          title: 'Customer story: how Globex scaled',
+          description: 'A real-world walkthrough from one of our customers.',
+          src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+          poster: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ElephantsDream.jpg',
+          badge: 'Case study',
+          cta: { label: 'View case studies', url: 'https://example.com/customers' }
+        },
+        {
+          title: 'Watch the full webinar (YouTube)',
+          description: 'A deep dive recorded live with the founding team.',
+          src: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+          badge: 'Webinar • 45 min',
+          cta: { label: 'Register for the next one', url: 'https://example.com/webinar' }
+        },
+        {
+          title: 'Behind the scenes (Vimeo)',
+          description: 'How we built it — a short documentary.',
+          src: 'https://vimeo.com/76979871',
+          badge: 'Vimeo',
+          cta: { label: 'Join the team', url: 'https://example.com/careers' }
+        }
+      ]
+    });
+  </script>
+</body>
+</html>

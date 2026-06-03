@@ -1,0 +1,371 @@
+/*!
+ * InlineVideo — a tiny, dependency-free plugin for sales pages.
+ *
+ * Features
+ *  - Plays video inline (muted autoplay loop, like modern sales/landing pages),
+ *    with a click to unmute + show full controls.
+ *  - Supports self-hosted MP4/WebM, YouTube, and Vimeo sources.
+ *  - A clickable playlist so visitors can browse "more videos".
+ *  - Each video can carry a call-to-action that visits a different webpage.
+ *  - No build step, no dependencies. Drop the <script> on any page.
+ *
+ * Usage (declarative):
+ *   <div data-inline-video='{ ...config... }'></div>
+ *   <script src="inline-video-plugin.js"></script>
+ *
+ * Usage (programmatic):
+ *   InlineVideo.mount('#my-el', { playlist: [ ... ] });
+ *
+ * See README.md for the full config reference.
+ */
+(function (global) {
+  'use strict';
+
+  var STYLE_ID = 'inline-video-styles';
+
+  /* ------------------------------------------------------------------ *
+   * Styles — injected once so the plugin is a true single-file drop-in.
+   * Everything is namespaced under .ivp- to avoid clashing with the host
+   * page. Colours are driven by CSS custom properties for easy theming.
+   * ------------------------------------------------------------------ */
+  var CSS = [
+    '.ivp{--ivp-accent:#2563eb;--ivp-bg:#0b1020;--ivp-radius:14px;',
+    'font-family:inherit;color:#fff;width:100%;box-sizing:border-box}',
+    '.ivp *{box-sizing:border-box}',
+    '.ivp-stage{position:relative;width:100%;aspect-ratio:16/9;background:var(--ivp-bg);',
+    'border-radius:var(--ivp-radius);overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.25)}',
+    '.ivp-stage video,.ivp-stage iframe{position:absolute;inset:0;width:100%;height:100%;',
+    'border:0;object-fit:cover;display:block}',
+    '.ivp-overlay{position:absolute;inset:0;display:flex;flex-direction:column;',
+    'justify-content:flex-end;padding:18px 20px;gap:10px;cursor:pointer;',
+    'background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(0,0,0,.65) 100%);',
+    'transition:opacity .3s ease}',
+    '.ivp-stage.ivp-playing .ivp-overlay{opacity:0;pointer-events:none}',
+    '.ivp-stage.ivp-playing:hover .ivp-overlay{opacity:1;pointer-events:auto}',
+    '.ivp-title{font-size:1.25rem;font-weight:700;margin:0;line-height:1.2;',
+    'text-shadow:0 1px 8px rgba(0,0,0,.6)}',
+    '.ivp-desc{font-size:.9rem;margin:0;opacity:.9;max-width:80%;',
+    'text-shadow:0 1px 8px rgba(0,0,0,.6)}',
+    '.ivp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}',
+    '.ivp-btn{appearance:none;border:0;cursor:pointer;font:inherit;font-weight:600;',
+    'padding:9px 16px;border-radius:999px;background:var(--ivp-accent);color:#fff;',
+    'text-decoration:none;display:inline-flex;align-items:center;gap:7px;',
+    'transition:transform .12s ease,filter .12s ease}',
+    '.ivp-btn:hover{transform:translateY(-1px);filter:brightness(1.08)}',
+    '.ivp-btn--ghost{background:rgba(255,255,255,.16);backdrop-filter:blur(4px)}',
+    '.ivp-playbtn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);',
+    'width:74px;height:74px;border-radius:50%;background:rgba(0,0,0,.45);',
+    'display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);',
+    'border:2px solid rgba(255,255,255,.85);transition:transform .15s ease,background .15s ease}',
+    '.ivp-overlay:hover .ivp-playbtn{transform:translate(-50%,-50%) scale(1.06);background:var(--ivp-accent)}',
+    '.ivp-playbtn svg{width:30px;height:30px;margin-left:4px;fill:#fff}',
+    '.ivp-mute{position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;',
+    'background:rgba(0,0,0,.5);border:0;cursor:pointer;display:none;align-items:center;',
+    'justify-content:center;backdrop-filter:blur(4px);z-index:3}',
+    '.ivp-stage.ivp-playing .ivp-mute{display:flex}',
+    '.ivp-mute svg{width:20px;height:20px;fill:#fff}',
+    '.ivp-rail{display:flex;gap:12px;overflow-x:auto;padding:14px 2px 4px;scroll-snap-type:x mandatory}',
+    '.ivp-rail::-webkit-scrollbar{height:8px}',
+    '.ivp-rail::-webkit-scrollbar-thumb{background:rgba(127,127,127,.4);border-radius:8px}',
+    '.ivp-thumb{flex:0 0 168px;scroll-snap-align:start;cursor:pointer;border-radius:10px;',
+    'overflow:hidden;background:var(--ivp-bg);border:2px solid transparent;',
+    'transition:border-color .15s ease,transform .15s ease;text-align:left;padding:0;color:inherit;font:inherit}',
+    '.ivp-thumb:hover{transform:translateY(-2px)}',
+    '.ivp-thumb.ivp-active{border-color:var(--ivp-accent)}',
+    '.ivp-thumb-img{position:relative;width:100%;aspect-ratio:16/9;background:#1b2440 center/cover no-repeat}',
+    '.ivp-thumb-img::after{content:"";position:absolute;inset:0;',
+    'background:rgba(0,0,0,.15)}',
+    '.ivp-thumb-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);',
+    'width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.5);display:flex;',
+    'align-items:center;justify-content:center;z-index:2}',
+    '.ivp-thumb-play svg{width:15px;height:15px;fill:#fff;margin-left:2px}',
+    '.ivp-thumb-meta{padding:8px 10px}',
+    '.ivp-thumb-title{font-size:.82rem;font-weight:600;margin:0;line-height:1.25;',
+    'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
+    '.ivp-badge{font-size:.7rem;opacity:.7;margin-top:2px;display:block}',
+    '@media (max-width:520px){.ivp-thumb{flex-basis:140px}.ivp-title{font-size:1.05rem}',
+    '.ivp-desc{display:none}}'
+  ].join('');
+
+  function injectStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = CSS;
+    document.head.appendChild(s);
+  }
+
+  /* ------------------------------ helpers ------------------------------ */
+
+  function el(tag, cls, attrs) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (attrs) Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    return node;
+  }
+
+  var PLAY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  var MUTE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM3 9v6h4l5 5V4L7 9H3z"/><line x1="2" y1="2" x2="22" y2="22" stroke="#fff" stroke-width="2"/></svg>';
+  var UNMUTE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/></svg>';
+
+  // Detect a provider from a URL. Returns {type, id} or {type:'file'}.
+  function detectSource(item) {
+    if (item.type === 'youtube' || item.type === 'vimeo' || item.type === 'file') {
+      return { type: item.type, id: item.videoId || item.src };
+    }
+    var url = item.src || '';
+    var yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
+    if (yt) return { type: 'youtube', id: yt[1] };
+    var vm = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+    if (vm) return { type: 'vimeo', id: vm[1] };
+    return { type: 'file', id: url };
+  }
+
+  // Build an autoplay/preview embed URL for iframe providers.
+  function providerEmbed(source, opts) {
+    var muted = opts.muted ? 1 : 0;
+    var auto = opts.autoplay ? 1 : 0;
+    if (source.type === 'youtube') {
+      var loopParams = opts.loop ? '&loop=1&playlist=' + source.id : '';
+      return 'https://www.youtube.com/embed/' + source.id +
+        '?autoplay=' + auto + '&mute=' + muted + '&controls=' + (opts.controls ? 1 : 0) +
+        '&rel=0&modestbranding=1&playsinline=1' + loopParams;
+    }
+    // vimeo
+    return 'https://player.vimeo.com/video/' + source.id +
+      '?autoplay=' + auto + '&muted=' + muted + '&loop=' + (opts.loop ? 1 : 0) +
+      '&controls=' + (opts.controls ? 1 : 0) + '&playsinline=1&dnt=1';
+  }
+
+  /* ------------------------------ instance ------------------------------ */
+
+  function InlineVideoInstance(root, config) {
+    this.root = root;
+    this.config = Object.assign({
+      autoplay: true,     // start the first video automatically
+      muted: true,        // inline autoplay must be muted to be allowed by browsers
+      loop: true,         // loop the inline preview
+      showPlaylist: true, // render the "more videos" rail
+      accent: null,       // override accent colour
+      startIndex: 0
+    }, config || {});
+    this.playlist = (this.config.playlist || []).slice();
+    this.current = -1;
+    this.render();
+  }
+
+  InlineVideoInstance.prototype.render = function () {
+    var self = this;
+    var c = this.config;
+    this.root.innerHTML = '';
+    this.root.classList.add('ivp');
+    if (c.accent) this.root.style.setProperty('--ivp-accent', c.accent);
+
+    // ---- stage ----
+    this.stage = el('div', 'ivp-stage');
+    this.media = el('div', 'ivp-media'); // media gets swapped per video
+    this.stage.appendChild(this.media);
+
+    // mute toggle (only meaningful for self-hosted <video>)
+    this.muteBtn = el('button', 'ivp-mute', { 'aria-label': 'Toggle sound', type: 'button' });
+    this.muteBtn.innerHTML = MUTE_SVG;
+    this.muteBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      self.toggleMute();
+    });
+    this.stage.appendChild(this.muteBtn);
+
+    // overlay with title/description + CTAs
+    this.overlay = el('div', 'ivp-overlay');
+    this.playBtn = el('div', 'ivp-playbtn');
+    this.playBtn.innerHTML = PLAY_SVG;
+    this.overlay.appendChild(this.playBtn);
+
+    this.titleEl = el('h3', 'ivp-title');
+    this.descEl = el('p', 'ivp-desc');
+    this.ctaRow = el('div', 'ivp-row');
+    this.overlay.appendChild(this.titleEl);
+    this.overlay.appendChild(this.descEl);
+    this.overlay.appendChild(this.ctaRow);
+
+    this.overlay.addEventListener('click', function () { self.activate(self.current, true); });
+    this.stage.appendChild(this.overlay);
+    this.root.appendChild(this.stage);
+
+    // ---- playlist rail ----
+    if (c.showPlaylist && this.playlist.length > 1) {
+      this.rail = el('div', 'ivp-rail');
+      this.playlist.forEach(function (item, i) {
+        self.rail.appendChild(self.buildThumb(item, i));
+      });
+      this.root.appendChild(this.rail);
+    }
+
+    if (this.playlist.length) {
+      // Load (but don't force-unmute) the start video.
+      this.activate(Math.min(c.startIndex, this.playlist.length - 1), false);
+    } else {
+      this.titleEl.textContent = 'No videos configured';
+      this.playBtn.style.display = 'none';
+    }
+  };
+
+  InlineVideoInstance.prototype.buildThumb = function (item, i) {
+    var self = this;
+    var btn = el('button', 'ivp-thumb', { type: 'button', 'aria-label': item.title || ('Video ' + (i + 1)) });
+    var img = el('div', 'ivp-thumb-img');
+    if (item.poster) img.style.backgroundImage = 'url("' + item.poster + '")';
+    var play = el('div', 'ivp-thumb-play');
+    play.innerHTML = PLAY_SVG;
+    img.appendChild(play);
+    var meta = el('div', 'ivp-thumb-meta');
+    var t = el('p', 'ivp-thumb-title');
+    t.textContent = item.title || ('Video ' + (i + 1));
+    meta.appendChild(t);
+    if (item.badge) {
+      var b = el('span', 'ivp-badge');
+      b.textContent = item.badge;
+      meta.appendChild(b);
+    }
+    btn.appendChild(img);
+    btn.appendChild(meta);
+    btn.addEventListener('click', function () { self.activate(i, true); });
+    btn._ivpIndex = i;
+    return btn;
+  };
+
+  // Load a video into the stage. play=true means the user asked to play it
+  // (so we honour sound / show controls); play=false is a passive preview load.
+  InlineVideoInstance.prototype.activate = function (index, play) {
+    var item = this.playlist[index];
+    if (!item) return;
+    var isNew = index !== this.current;
+    this.current = index;
+    var source = detectSource(item);
+
+    if (isNew) {
+      this.media.innerHTML = '';
+      var startMuted = play ? false : this.config.muted;
+
+      if (source.type === 'file') {
+        var video = el('video', null, { playsinline: '', preload: 'metadata' });
+        video.muted = startMuted;
+        video.loop = this.config.loop;
+        video.controls = !!play;
+        if (item.poster) video.poster = item.poster;
+        var s = el('source', null, { src: source.id });
+        if (item.mime) s.type = item.mime;
+        video.appendChild(s);
+        this.media.appendChild(video);
+        this._video = video;
+        if (play || this.config.autoplay) {
+          var p = video.play();
+          if (p && p.catch) p.catch(function () {/* autoplay blocked; overlay stays */});
+        }
+      } else {
+        // iframe providers can't be unmuted programmatically once started,
+        // so when the user clicks play we (re)load with sound + controls.
+        this._video = null;
+        var iframe = el('iframe', null, {
+          src: providerEmbed(source, {
+            autoplay: play || this.config.autoplay,
+            muted: play ? false : this.config.muted,
+            loop: this.config.loop,
+            controls: !!play
+          }),
+          allow: 'autoplay; fullscreen; picture-in-picture',
+          allowfullscreen: ''
+        });
+        this.media.appendChild(iframe);
+      }
+    }
+
+    if (play) this.stage.classList.add('ivp-playing');
+    this.updateMuteIcon();
+    this.updateOverlay(item);
+    this.updateThumbs(index);
+  };
+
+  InlineVideoInstance.prototype.updateOverlay = function (item) {
+    this.titleEl.textContent = item.title || '';
+    this.descEl.textContent = item.description || '';
+    this.ctaRow.innerHTML = '';
+    var ctas = item.cta ? (Array.isArray(item.cta) ? item.cta : [item.cta]) : [];
+    var self = this;
+    ctas.forEach(function (cta, idx) {
+      var a = el('a', 'ivp-btn' + (idx > 0 ? ' ivp-btn--ghost' : ''), {
+        href: cta.url,
+        target: cta.newTab === false ? '_self' : '_blank',
+        rel: 'noopener'
+      });
+      a.textContent = cta.label || 'Learn more';
+      // Don't let a CTA click also toggle play on the overlay.
+      a.addEventListener('click', function (e) { e.stopPropagation(); });
+      self.ctaRow.appendChild(a);
+    });
+  };
+
+  InlineVideoInstance.prototype.updateThumbs = function (index) {
+    if (!this.rail) return;
+    Array.prototype.forEach.call(this.rail.children, function (child) {
+      child.classList.toggle('ivp-active', child._ivpIndex === index);
+    });
+  };
+
+  InlineVideoInstance.prototype.toggleMute = function () {
+    if (!this._video) return;
+    this._video.muted = !this._video.muted;
+    if (!this._video.muted && this._video.paused) this._video.play();
+    this.updateMuteIcon();
+  };
+
+  InlineVideoInstance.prototype.updateMuteIcon = function () {
+    if (!this.muteBtn) return;
+    var muted = this._video ? this._video.muted : true;
+    this.muteBtn.innerHTML = muted ? MUTE_SVG : UNMUTE_SVG;
+  };
+
+  /* ------------------------------ public API ------------------------------ */
+
+  var InlineVideo = {
+    instances: [],
+
+    mount: function (target, config) {
+      injectStyles();
+      var node = typeof target === 'string' ? document.querySelector(target) : target;
+      if (!node) return null;
+      var inst = new InlineVideoInstance(node, config);
+      this.instances.push(inst);
+      return inst;
+    },
+
+    // Auto-mount every element carrying a data-inline-video config.
+    autoInit: function () {
+      var self = this;
+      var nodes = document.querySelectorAll('[data-inline-video]');
+      Array.prototype.forEach.call(nodes, function (node) {
+        if (node._ivpMounted) return;
+        node._ivpMounted = true;
+        var raw = node.getAttribute('data-inline-video');
+        var cfg = {};
+        if (raw && raw.trim()) {
+          try { cfg = JSON.parse(raw); }
+          catch (e) { console.error('[InlineVideo] Invalid JSON in data-inline-video:', e); return; }
+        }
+        // Allow a global window.InlineVideoConfig[id] fallback for big configs.
+        if (cfg.configRef && global.InlineVideoConfig) {
+          cfg = global.InlineVideoConfig[cfg.configRef] || cfg;
+        }
+        self.mount(node, cfg);
+      });
+    }
+  };
+
+  global.InlineVideo = InlineVideo;
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { InlineVideo.autoInit(); });
+  } else {
+    InlineVideo.autoInit();
+  }
+})(typeof window !== 'undefined' ? window : this);
