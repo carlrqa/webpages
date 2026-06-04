@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>InlineVideo — Sales Page Demo</title>
+  <title>InlineVideo — Interactive Sales Page Demo</title>
   <style>
     :root { --ink:#0b1020; --muted:#5b6478; }
     * { box-sizing: border-box; }
@@ -18,10 +18,16 @@
     header { text-align: center; margin-bottom: 36px; }
     .eyebrow { color: #2563eb; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; }
     h1 { font-size: clamp(2rem, 5vw, 3rem); margin: 10px 0 12px; line-height: 1.1; }
-    .lede { color: var(--muted); font-size: 1.15rem; max-width: 620px; margin: 0 auto; }
+    .lede { color: var(--muted); font-size: 1.15rem; max-width: 640px; margin: 0 auto; }
     section { margin-top: 56px; }
     section h2 { font-size: 1.5rem; margin-bottom: 6px; }
     section p.sub { color: var(--muted); margin-top: 0; }
+    .events {
+      margin-top: 28px; background: #0b1020; color: #cfe1ff; border-radius: 12px;
+      padding: 16px 18px; font: .82rem/1.5 ui-monospace, Menlo, Consolas, monospace;
+      max-height: 180px; overflow:auto;
+    }
+    .events strong { color: #7fd1ff; }
     .cta-bar {
       margin-top: 40px; text-align: center; padding: 32px;
       background: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(15,23,42,.06);
@@ -38,24 +44,29 @@
   <div class="wrap">
     <header>
       <div class="eyebrow">Acme Studio</div>
-      <h1>Turn visitors into customers with video</h1>
+      <h1>Choose your path — an interactive video pitch</h1>
       <p class="lede">
-        The hero video plays inline and muted the moment the page loads — click it to
-        hear the pitch, browse more videos below, or jump straight to a product page.
+        The intro plays inline and muted. When it ends, the viewer picks a branch
+        ("I'm in Sales" / "I'm in IT"), gets a tailored clip, and can hit a CTA or
+        unlock the full demo behind a quick form. Every choice fires an analytics event.
       </p>
     </header>
 
     <!-- ============================================================== -->
-    <!-- The plugin. Just one element + one script.                     -->
+    <!-- The interactive video flow mounts here.                        -->
     <!-- ============================================================== -->
     <div id="hero-video"></div>
 
+    <!-- Live analytics feed (for demo purposes) -->
+    <div class="events" id="event-log"><strong>Analytics events</strong> will appear here as you interact…</div>
+
     <section>
-      <h2>How it works on your page</h2>
+      <h2>What's happening under the hood</h2>
       <p class="sub">
-        Drop a single <code>&lt;div&gt;</code> with a <code>data-inline-video</code>
-        config (or call <code>InlineVideo.mount()</code>), add the script, and you're done.
-        Self-hosted MP4, YouTube, and Vimeo all work out of the box.
+        Each clip is a node. <code>choices</code> branch to other nodes by <code>id</code>;
+        a node with a <code>form</code> gates the next clip behind lead capture; and an
+        <code>onEvent</code> callback receives <code>play</code>, <code>ended</code>,
+        <code>choice</code>, <code>cta</code>, and <code>lead</code> events.
       </p>
     </section>
 
@@ -70,46 +81,89 @@
     </footer>
   </div>
 
-  <!-- Load the plugin -->
   <script src="inline-video-plugin.js"></script>
   <script>
-    // Programmatic mount with a playlist. Swap these for your own videos.
+    // Tiny analytics sink for the demo.
+    function logEvent(name, detail) {
+      var log = document.getElementById('event-log');
+      var line = document.createElement('div');
+      line.innerHTML = '<strong>' + name + '</strong> · ' + JSON.stringify(detail);
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
     InlineVideo.mount('#hero-video', {
       accent: '#2563eb',
+      onEvent: logEvent,   // <-- analytics hook (wire to GA/GTM/your endpoint)
+      // gtm: true,        // <-- also push to window.dataLayer for Google Tag Manager
       playlist: [
         {
-          title: 'Meet the product in 90 seconds',
-          description: 'See how teams ship faster with Acme. Tap to unmute.',
-          // Big Buck Bunny — a freely available sample clip.
+          id: 'intro',
+          title: 'Welcome — which best describes you?',
+          description: 'Watch the 30-second intro, then choose your path.',
           src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
           poster: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg',
-          badge: '1:30 • Overview',
-          cta: [
-            { label: 'Start free trial', url: 'https://example.com/signup' },
-            { label: 'Read the docs', url: 'https://example.com/docs' }
+          badge: 'Start here',
+          choicesPrompt: 'Which best describes your role?',
+          choices: [
+            { label: "I'm in Sales", goto: 'sales' },
+            { label: "I'm in IT",    goto: 'it' },
+            { label: 'Just book a demo', url: 'https://example.com/demo' }
           ]
         },
         {
-          title: 'Customer story: how Globex scaled',
-          description: 'A real-world walkthrough from one of our customers.',
+          id: 'sales',
+          title: 'For Sales teams',
+          description: 'How reps close faster with Acme.',
           src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
           poster: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ElephantsDream.jpg',
-          badge: 'Case study',
-          cta: { label: 'View case studies', url: 'https://example.com/customers' }
+          badge: 'Sales',
+          choicesPrompt: 'Want to go deeper?',
+          choices: [
+            { label: 'Unlock the full demo', goto: 'gate' },
+            { label: 'See pricing', url: 'https://example.com/pricing' }
+          ]
         },
         {
-          title: 'Watch the full webinar (YouTube)',
-          description: 'A deep dive recorded live with the founding team.',
-          src: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
-          badge: 'Webinar • 45 min',
-          cta: { label: 'Register for the next one', url: 'https://example.com/webinar' }
+          id: 'it',
+          title: 'For IT & Security',
+          description: 'Deployment, SSO, and compliance in 60 seconds.',
+          src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+          poster: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerJoyrides.jpg',
+          badge: 'IT',
+          choicesPrompt: 'Next step?',
+          choices: [
+            { label: 'Unlock the full demo', goto: 'gate' },
+            { label: 'Read the security docs', url: 'https://example.com/security' }
+          ]
         },
         {
-          title: 'Behind the scenes (Vimeo)',
-          description: 'How we built it — a short documentary.',
-          src: 'https://vimeo.com/76979871',
-          badge: 'Vimeo',
-          cta: { label: 'Join the team', url: 'https://example.com/careers' }
+          // A lead-capture step: the form gates the full-demo clip below it.
+          id: 'gate',
+          form: {
+            title: 'Unlock the full demo',
+            description: 'Tell us where to send the recording.',
+            fields: [
+              { name: 'name',  label: 'Name' },
+              { name: 'email', label: 'Work email', type: 'email', required: true, placeholder: 'you@company.com' }
+            ],
+            submitLabel: 'Watch the full demo',
+            note: 'We never share your details. Unsubscribe anytime.',
+            // action: 'https://your-endpoint.example.com/leads',  // optional POST
+            goto: 'fulldemo'
+          }
+        },
+        {
+          id: 'fulldemo',
+          title: 'The full product demo',
+          description: 'Thanks! Here is the complete walkthrough.',
+          src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+          poster: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerBlazes.jpg',
+          badge: 'Full demo',
+          cta: [
+            { label: 'Start free trial', url: 'https://example.com/signup' },
+            { label: 'Talk to sales', url: 'https://example.com/contact' }
+          ]
         }
       ]
     });
