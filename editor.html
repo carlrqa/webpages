@@ -91,7 +91,7 @@
     <details class="howto" open>
       <summary>How to use this editor</summary>
       <ol>
-        <li><span class="stage-label">1 · Build</span> On the <b>left</b>, set your options and add steps. For each <b>Video</b> step choose a <b>Video source</b> — paste a hosted link (YouTube/Vimeo/MP4) or pick a <b>local file</b> to upload alongside the page. Add <b>branching choices</b> to send viewers to other steps or webpages. The <b>right</b> shows a live preview.</li>
+        <li><span class="stage-label">1 · Build</span> On the <b>left</b>, set your options and add steps. For each <b>Video</b> step choose a <b>Video source</b> — a hosted link (YouTube/Vimeo/MP4), a <b>local file</b> uploaded alongside the page, or <b>embed</b> a small clip inside the page (one file, no separate upload). Add <b>branching choices</b> to send viewers to other steps or webpages. The <b>right</b> shows a live preview.</li>
         <li><span class="stage-label">2 · Publish</span> Click <b>Download standalone page</b> — this is your video page (one HTML file). Upload it (plus any local video files) to your host (e.g. Netlify). It now has a web address like <code>https://your-site.netlify.app/video.html</code>. Put that address in the <b>Hosted page URL</b> field.</li>
         <li><span class="stage-label">3 · Embed</span> Click <b>Copy embed snippet</b> (bottom-right) and paste that one line into a Text/HTML block on your CMS page. Done.</li>
       </ol>
@@ -840,6 +840,7 @@
     function el(tag,cls,txt){ var n=document.createElement(tag); if(cls)n.className=cls; if(txt!=null)n.textContent=txt; return n; }
     function field(labelText, input){ var l=el('label','fld'); l.appendChild(el('span',null,labelText)); l.appendChild(input); return l; }
     function textInput(val,ph,type){ var i=document.createElement('input'); i.type=type||'text'; i.value=val||''; if(ph)i.placeholder=ph; return i; }
+    function fmtBytes(n){ if(n<1024)return n+' B'; if(n<1048576)return (n/1024).toFixed(0)+' KB'; return (n/1048576).toFixed(1)+' MB'; }
 
     var toastTimer;
     function toast(msg){ var t=$('#toast'); t.textContent=msg; t.classList.add('show');
@@ -999,7 +1000,7 @@
       var d=document.createElement('textarea'); d.value=node.description||''; bindInput(d,node,'description'); box.appendChild(field('Description', d));
       // Video source: hosted URL vs a local file uploaded alongside the page.
       var modeSel=document.createElement('select');
-      [['url','Hosted — paste a YouTube / Vimeo / MP4 link'],['local','Local file — upload it alongside the page']].forEach(function(o){
+      [['url','Hosted — paste a YouTube / Vimeo / MP4 link'],['local','Local file — upload it alongside the page'],['embed','Embedded — bundle a small clip inside the page (one file)']].forEach(function(o){
         var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; modeSel.appendChild(op);
       });
       modeSel.value=node.srcMode||'url';
@@ -1020,6 +1021,21 @@
         box.appendChild(field('Choose video file (for preview)', picker));
         box.appendChild(field('File name (must match the file you upload to Netlify)', pathIn));
         box.appendChild(el('p','hint','Upload this video file to Netlify in the SAME folder as the page. The live preview here works only after you pick the file, and won’t survive a reload (re-pick it if needed).'));
+      } else if((node.srcMode)==='embed'){
+        var epick=document.createElement('input'); epick.type='file'; epick.accept='video/*';
+        var embedded=node.src && node.src.indexOf('data:')===0;
+        var status=el('p','hint', embedded ? ('✓ Embedded: '+(node.embedName||'clip')+' (~'+fmtBytes(node.src.length*0.75)+') — no separate upload needed') : 'No clip embedded yet — choose a file.');
+        epick.addEventListener('change',function(){
+          var f=epick.files&&epick.files[0]; if(!f) return;
+          if(f.size>8*1024*1024 && !confirm('That file is '+fmtBytes(f.size)+'. Embedding large videos makes the page heavy and may exceed the browser’s save limit. Embed anyway?')){ epick.value=''; return; }
+          var rd=new FileReader();
+          rd.onload=function(){ node.src=rd.result; node.embedName=f.name;
+            status.textContent='✓ Embedded: '+f.name+' ('+fmtBytes(f.size)+') — no separate upload needed'; onChange(); };
+          rd.readAsDataURL(f);
+        });
+        box.appendChild(field('Choose a small video clip to embed', epick));
+        box.appendChild(status);
+        box.appendChild(el('p','hint','The clip is stored inside the page itself, so the standalone page is the ONLY file you upload. Best for short clips (roughly under 5–8 MB). For longer videos use Hosted or Local instead.'));
       } else {
         var src=textInput(node.src,'https://… .mp4, YouTube or Vimeo URL','url'); bindInput(src,node,'src');
         box.appendChild(field('Video URL', src));
