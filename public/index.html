@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RQA Interactive Video</title>
+<style>
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f6f8fc;color:#0b1020}
+  .wrap{max-width:820px;margin:0 auto;padding:56px 20px}
+  h1{font-size:2rem;margin:0 0 8px}
+  p{color:#5b6478;line-height:1.6}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px}
+  @media(max-width:640px){.cards{grid-template-columns:1fr}}
+  a.card{display:block;text-decoration:none;color:inherit;background:#fff;border:1px solid #e3e8f0;border-radius:14px;padding:20px;transition:border-color .15s,transform .15s}
+  a.card:hover{border-color:#004990;transform:translateY(-2px)}
+  a.card b{display:block;font-size:1.1rem;margin-bottom:4px;color:#004990}
+  code{background:#eef1f7;padding:2px 6px;border-radius:6px;font-size:.9em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>RQA Interactive Video</h1>
+  <p>This Netlify site hosts the interactive-video player. Embed a flow on any
+     RQA page with a one-line iframe pointing at <code>/video.html</code>.</p>
+  <div class="cards">
+    <a class="card" href="/video.html"><b>▶ View the demo</b>The branching player that gets embedded (iframe this URL).</a>
+    <a class="card" href="/editor.html"><b>✎ Open the flow editor</b>Build/edit flows visually, then export the embed.</a>
+  </div>
+  <p style="margin-top:28px">Embed snippet (paste into a CMS Text/HTML block):</p>
+  <pre style="background:#0b1020;color:#cfe1ff;padding:14px;border-radius:10px;overflow:auto"><code>&lt;iframe src="https://THIS-SITE.netlify.app/video.html"
+  width="100%" height="700" frameborder="0" loading="lazy"
+  title="RQA video" style="border:0;display:block"&gt;&lt;/iframe&gt;</code></pre>
+</div>
+</body>
+</html>

@@ -1,0 +1,3 @@
+# Static deploy: serve everything in the public/ folder as-is (no build step).
+[build]
+  publish = "public"

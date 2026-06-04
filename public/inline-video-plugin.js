@@ -1,0 +1,655 @@
+/*!
+ * InlineVideo — a tiny, dependency-free interactive-video plugin for sales pages.
+ *
+ * Features
+ *  - Plays video inline (muted autoplay, like modern sales/landing pages),
+ *    with a click to unmute + show full controls.
+ *  - Supports self-hosted MP4/WebM, YouTube, and Vimeo sources.
+ *  - A clickable playlist so visitors can browse "more videos".
+ *  - BRANCHING FLOWS ("choose your path"): when a clip ends, show choice
+ *    buttons that route the viewer to a different next video — a decision tree.
+ *  - LEAD CAPTURE: gate a clip (or insert a standalone step) behind an
+ *    email/contact form before continuing the flow.
+ *  - CALLS-TO-ACTION that visit any webpage.
+ *  - ANALYTICS HOOKS: every play / choice / CTA / lead fires a trackable event
+ *    (callback, GTM dataLayer, and a DOM CustomEvent) so you can wire it to GA,
+ *    GTM, or your own endpoint.
+ *  - No build step, no dependencies. Drop the <script> on any page.
+ *
+ * Usage (declarative):
+ *   <div data-inline-video='{ ...config... }'></div>
+ *   <script src="inline-video-plugin.js"><\/script>
+ *
+ * Usage (programmatic):
+ *   InlineVideo.mount('#my-el', { playlist: [ ... ] });
+ *
+ * See README.md for the full config reference.
+ */
+(function (global) {
+  'use strict';
+
+  var STYLE_ID = 'inline-video-styles';
+
+  /* ------------------------------------------------------------------ *
+   * Styles — injected once so the plugin is a true single-file drop-in.
+   * Everything is namespaced under .ivp- to avoid clashing with the host
+   * page. Colours are driven by CSS custom properties for easy theming.
+   * ------------------------------------------------------------------ */
+  var CSS = [
+    '.ivp{--ivp-accent:#2563eb;--ivp-bg:#0b1020;--ivp-radius:14px;',
+    'font-family:inherit;color:#fff;width:100%;box-sizing:border-box}',
+    '.ivp *{box-sizing:border-box}',
+    '.ivp-stage{position:relative;width:100%;aspect-ratio:16/9;background:var(--ivp-bg);',
+    'border-radius:var(--ivp-radius);overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.25)}',
+    '.ivp-stage video,.ivp-stage iframe{position:absolute;inset:0;width:100%;height:100%;',
+    'border:0;object-fit:cover;display:block}',
+    '.ivp-overlay{position:absolute;inset:0;display:flex;flex-direction:column;',
+    'justify-content:flex-end;padding:18px 20px;gap:10px;cursor:pointer;',
+    'background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(0,0,0,.65) 100%);',
+    'transition:opacity .3s ease}',
+    '.ivp-stage.ivp-playing .ivp-overlay{opacity:0;pointer-events:none}',
+    '.ivp-stage.ivp-playing:hover .ivp-overlay{opacity:1;pointer-events:auto}',
+    '.ivp-title{font-size:1.25rem;font-weight:700;margin:0;line-height:1.2;',
+    'text-shadow:0 1px 8px rgba(0,0,0,.6)}',
+    '.ivp-desc{font-size:.9rem;margin:0;opacity:.9;max-width:80%;',
+    'text-shadow:0 1px 8px rgba(0,0,0,.6)}',
+    '.ivp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}',
+    '.ivp-btn{appearance:none;border:0;cursor:pointer;font:inherit;font-weight:600;',
+    'padding:9px 16px;border-radius:999px;background:var(--ivp-accent);color:#fff;',
+    'text-decoration:none;display:inline-flex;align-items:center;gap:7px;',
+    'transition:transform .12s ease,filter .12s ease}',
+    '.ivp-btn:hover{transform:translateY(-1px);filter:brightness(1.08)}',
+    '.ivp-btn--ghost{background:rgba(255,255,255,.16);backdrop-filter:blur(4px)}',
+    '.ivp-playbtn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);',
+    'width:74px;height:74px;border-radius:50%;background:rgba(0,0,0,.45);',
+    'display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);',
+    'border:2px solid rgba(255,255,255,.85);transition:transform .15s ease,background .15s ease}',
+    '.ivp-overlay:hover .ivp-playbtn{transform:translate(-50%,-50%) scale(1.06);background:var(--ivp-accent)}',
+    '.ivp-playbtn svg{width:30px;height:30px;margin-left:4px;fill:#fff}',
+    '.ivp-mute{position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;',
+    'background:rgba(0,0,0,.5);border:0;cursor:pointer;display:none;align-items:center;',
+    'justify-content:center;backdrop-filter:blur(4px);z-index:3}',
+    '.ivp-stage.ivp-playing .ivp-mute{display:flex}',
+    '.ivp-mute svg{width:20px;height:20px;fill:#fff}',
+    /* covers: branching end-screen + lead form, shown over the stage */
+    '.ivp-cover{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;',
+    'justify-content:center;gap:16px;padding:24px;background:rgba(8,12,28,.92);',
+    'backdrop-filter:blur(6px);z-index:5;text-align:center}',
+    '.ivp-cover.ivp-show{display:flex}',
+    '.ivp-cover h4{margin:0;font-size:1.2rem;font-weight:700;line-height:1.25}',
+    '.ivp-cover p.ivp-cover-sub{margin:0;opacity:.8;font-size:.9rem;max-width:460px}',
+    '.ivp-choices-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:560px}',
+    '.ivp-choice{appearance:none;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);',
+    'color:#fff;font:inherit;font-weight:600;padding:12px 18px;border-radius:12px;cursor:pointer;',
+    'transition:background .15s ease,transform .12s ease,border-color .15s ease}',
+    '.ivp-choice:hover{background:var(--ivp-accent);border-color:var(--ivp-accent);transform:translateY(-1px)}',
+    '.ivp-replay{background:none;border:0;color:rgba(255,255,255,.7);cursor:pointer;font:inherit;',
+    'text-decoration:underline;padding:4px}',
+    '.ivp-form{width:100%;max-width:380px;display:flex;flex-direction:column;gap:10px;text-align:left}',
+    '.ivp-field{display:flex;flex-direction:column;gap:4px}',
+    '.ivp-field label{font-size:.8rem;font-weight:600;opacity:.9}',
+    '.ivp-field input,.ivp-field select,.ivp-field textarea{font:inherit;padding:10px 12px;',
+    'border-radius:9px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.95);color:#0b1020}',
+    '.ivp-form .ivp-btn{justify-content:center;margin-top:4px}',
+    '.ivp-form-note{font-size:.72rem;opacity:.65;margin:2px 0 0}',
+    /* playlist rail */
+    '.ivp-rail{display:flex;gap:12px;overflow-x:auto;padding:14px 2px 4px;scroll-snap-type:x mandatory}',
+    '.ivp-rail::-webkit-scrollbar{height:8px}',
+    '.ivp-rail::-webkit-scrollbar-thumb{background:rgba(127,127,127,.4);border-radius:8px}',
+    '.ivp-thumb{flex:0 0 168px;scroll-snap-align:start;cursor:pointer;border-radius:10px;',
+    'overflow:hidden;background:var(--ivp-bg);border:2px solid transparent;',
+    'transition:border-color .15s ease,transform .15s ease;text-align:left;padding:0;color:inherit;font:inherit}',
+    '.ivp-thumb:hover{transform:translateY(-2px)}',
+    '.ivp-thumb.ivp-active{border-color:var(--ivp-accent)}',
+    '.ivp-thumb-img{position:relative;width:100%;aspect-ratio:16/9;background:#1b2440 center/cover no-repeat}',
+    '.ivp-thumb-img::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.15)}',
+    '.ivp-thumb-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);',
+    'width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.5);display:flex;',
+    'align-items:center;justify-content:center;z-index:2}',
+    '.ivp-thumb-play svg{width:15px;height:15px;fill:#fff;margin-left:2px}',
+    '.ivp-thumb-meta{padding:8px 10px}',
+    '.ivp-thumb-title{font-size:.82rem;font-weight:600;margin:0;line-height:1.25;',
+    'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
+    '.ivp-badge{font-size:.7rem;opacity:.7;margin-top:2px;display:block}',
+    '@media (max-width:520px){.ivp-thumb{flex-basis:140px}.ivp-title{font-size:1.05rem}',
+    '.ivp-desc{display:none}}'
+  ].join('');
+
+  function injectStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = CSS;
+    document.head.appendChild(s);
+  }
+
+  /* ------------------------------ helpers ------------------------------ */
+
+  function el(tag, cls, attrs) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (attrs) Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    return node;
+  }
+
+  var PLAY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  var MUTE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM3 9v6h4l5 5V4L7 9H3z"/><line x1="2" y1="2" x2="22" y2="22" stroke="#fff" stroke-width="2"/></svg>';
+  var UNMUTE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/></svg>';
+
+  // Lazy-load an external script once; returns a Promise.
+  var scriptPromises = {};
+  function loadScript(src) {
+    if (scriptPromises[src]) return scriptPromises[src];
+    scriptPromises[src] = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src; s.async = true;
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    return scriptPromises[src];
+  }
+
+  // Provider JS APIs (loaded only when a clip needs end-detection).
+  var ytReady = null;
+  function ensureYT() {
+    if (global.YT && global.YT.Player) return Promise.resolve(global.YT);
+    if (!ytReady) {
+      ytReady = new Promise(function (resolve) {
+        var prev = global.onYouTubeIframeAPIReady;
+        global.onYouTubeIframeAPIReady = function () {
+          if (typeof prev === 'function') { try { prev(); } catch (e) {} }
+          resolve(global.YT);
+        };
+        loadScript('https://www.youtube.com/iframe_api');
+      });
+    }
+    return ytReady;
+  }
+  function ensureVimeo() {
+    if (global.Vimeo && global.Vimeo.Player) return Promise.resolve(global.Vimeo);
+    return loadScript('https://player.vimeo.com/api/player.js').then(function () { return global.Vimeo; });
+  }
+
+  // Detect a provider from a URL. Returns {type, id}.
+  function detectSource(item) {
+    if (item.type === 'youtube' || item.type === 'vimeo' || item.type === 'file') {
+      return { type: item.type, id: item.videoId || item.src };
+    }
+    var url = item.src || '';
+    var yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
+    if (yt) return { type: 'youtube', id: yt[1] };
+    var vm = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+    if (vm) return { type: 'vimeo', id: vm[1] };
+    return { type: 'file', id: url };
+  }
+
+  // Build an autoplay/preview embed URL for iframe providers.
+  function providerEmbed(source, opts) {
+    var muted = opts.muted ? 1 : 0;
+    var auto = opts.autoplay ? 1 : 0;
+    if (source.type === 'youtube') {
+      var loopParams = opts.loop ? '&loop=1&playlist=' + source.id : '';
+      return 'https://www.youtube.com/embed/' + source.id +
+        '?autoplay=' + auto + '&mute=' + muted + '&controls=' + (opts.controls ? 1 : 0) +
+        '&rel=0&modestbranding=1&playsinline=1&enablejsapi=1' + loopParams;
+    }
+    return 'https://player.vimeo.com/video/' + source.id +
+      '?autoplay=' + auto + '&muted=' + muted + '&loop=' + (opts.loop ? 1 : 0) +
+      '&controls=' + (opts.controls ? 1 : 0) + '&playsinline=1&dnt=1';
+  }
+
+  /* ------------------------------ instance ------------------------------ */
+
+  function InlineVideoInstance(root, config) {
+    this.root = root;
+    this.config = Object.assign({
+      autoplay: true,     // start the first video automatically
+      muted: true,        // inline autoplay must be muted to be allowed by browsers
+      loop: true,         // loop the inline preview (disabled for clips that have choices)
+      showPlaylist: true, // render the "more videos" rail
+      accent: null,       // override accent colour
+      startIndex: 0,
+      onEvent: null,      // analytics callback: fn(eventName, detail)
+      gtm: false          // also push events to window.dataLayer for GTM
+    }, config || {});
+    this.playlist = (this.config.playlist || []).slice();
+    this.current = -1;
+    this.loadedIndex = -1; // which item's media is currently in the stage
+    this.formDone = {};    // gated/standalone forms already submitted
+    this._ytPlayer = null;
+    this._vimeoPlayer = null;
+    this.render();
+  }
+
+  // A stable key for an item (its id, or fall back to its index).
+  InlineVideoInstance.prototype.keyOf = function (item, index) {
+    return item.id != null ? String(item.id) : 'idx' + index;
+  };
+
+  // Resolve a branch/goto reference (an id or numeric index) to an index.
+  InlineVideoInstance.prototype.resolveIndex = function (ref) {
+    if (ref == null) return -1;
+    if (typeof ref === 'number') return ref;
+    for (var i = 0; i < this.playlist.length; i++) {
+      if (String(this.playlist[i].id) === String(ref)) return i;
+    }
+    return -1;
+  };
+
+  /* ---- analytics ---- */
+  InlineVideoInstance.prototype.emit = function (name, detail) {
+    detail = detail || {};
+    var item = this.playlist[this.current];
+    if (item) {
+      if (detail.video == null) detail.video = this.keyOf(item, this.current);
+      if (detail.title == null) detail.title = item.title || '';
+    }
+    if (typeof this.config.onEvent === 'function') {
+      try { this.config.onEvent(name, detail); } catch (e) { /* never break playback for analytics */ }
+    }
+    if (this.config.gtm && global.dataLayer && global.dataLayer.push) {
+      global.dataLayer.push(Object.assign({ event: 'inlinevideo_' + name }, detail));
+    }
+    try {
+      this.root.dispatchEvent(new CustomEvent('inlinevideo:' + name, { detail: detail, bubbles: true }));
+    } catch (e) { /* CustomEvent unsupported */ }
+  };
+
+  /* ---- render skeleton ---- */
+  InlineVideoInstance.prototype.render = function () {
+    var self = this;
+    var c = this.config;
+    this.root.innerHTML = '';
+    this.root.classList.add('ivp');
+    if (c.accent) this.root.style.setProperty('--ivp-accent', c.accent);
+
+    this.stage = el('div', 'ivp-stage');
+    this.media = el('div', 'ivp-media');
+    this.stage.appendChild(this.media);
+
+    this.muteBtn = el('button', 'ivp-mute', { 'aria-label': 'Toggle sound', type: 'button' });
+    this.muteBtn.innerHTML = MUTE_SVG;
+    this.muteBtn.addEventListener('click', function (e) { e.stopPropagation(); self.toggleMute(); });
+    this.stage.appendChild(this.muteBtn);
+
+    // overlay (title/desc/CTAs + play button)
+    this.overlay = el('div', 'ivp-overlay');
+    this.playBtn = el('div', 'ivp-playbtn');
+    this.playBtn.innerHTML = PLAY_SVG;
+    this.overlay.appendChild(this.playBtn);
+    this.titleEl = el('h3', 'ivp-title');
+    this.descEl = el('p', 'ivp-desc');
+    this.ctaRow = el('div', 'ivp-row');
+    this.overlay.appendChild(this.titleEl);
+    this.overlay.appendChild(this.descEl);
+    this.overlay.appendChild(this.ctaRow);
+    this.overlay.addEventListener('click', function () { self.activate(self.current, true); });
+    this.stage.appendChild(this.overlay);
+
+    // branching end-screen cover
+    this.choicesEl = el('div', 'ivp-cover');
+    this.stage.appendChild(this.choicesEl);
+
+    // lead-capture form cover
+    this.formEl = el('div', 'ivp-cover');
+    this.stage.appendChild(this.formEl);
+
+    this.root.appendChild(this.stage);
+
+    if (c.showPlaylist && this.playlist.length > 1) {
+      this.rail = el('div', 'ivp-rail');
+      this.playlist.forEach(function (item, i) { self.rail.appendChild(self.buildThumb(item, i)); });
+      this.root.appendChild(this.rail);
+    }
+
+    if (this.playlist.length) {
+      this.activate(Math.min(c.startIndex, this.playlist.length - 1), false);
+    } else {
+      this.titleEl.textContent = 'No videos configured';
+      this.playBtn.style.display = 'none';
+    }
+  };
+
+  InlineVideoInstance.prototype.buildThumb = function (item, i) {
+    var self = this;
+    var btn = el('button', 'ivp-thumb', { type: 'button', 'aria-label': item.title || ('Video ' + (i + 1)) });
+    var img = el('div', 'ivp-thumb-img');
+    if (item.poster) img.style.backgroundImage = 'url("' + item.poster + '")';
+    var play = el('div', 'ivp-thumb-play');
+    play.innerHTML = PLAY_SVG;
+    img.appendChild(play);
+    var meta = el('div', 'ivp-thumb-meta');
+    var t = el('p', 'ivp-thumb-title');
+    t.textContent = item.title || ('Video ' + (i + 1));
+    meta.appendChild(t);
+    if (item.badge) {
+      var b = el('span', 'ivp-badge');
+      b.textContent = item.badge;
+      meta.appendChild(b);
+    }
+    btn.appendChild(img);
+    btn.appendChild(meta);
+    btn.addEventListener('click', function () { self.activate(i, true); });
+    btn._ivpIndex = i;
+    return btn;
+  };
+
+  /* ---- core navigation ---- */
+
+  // Tear down any provider player + media when leaving a clip.
+  InlineVideoInstance.prototype.teardown = function () {
+    if (this._ytPlayer && this._ytPlayer.destroy) { try { this._ytPlayer.destroy(); } catch (e) {} }
+    if (this._vimeoPlayer && this._vimeoPlayer.destroy) { try { this._vimeoPlayer.destroy(); } catch (e) {} }
+    this._ytPlayer = null;
+    this._vimeoPlayer = null;
+    this._video = null;
+  };
+
+  InlineVideoInstance.prototype.hideCovers = function () {
+    this.choicesEl.classList.remove('ivp-show');
+    this.formEl.classList.remove('ivp-show');
+  };
+
+  // play=true means the user asked to play (honour sound/controls); play=false
+  // is a passive preview load.
+  InlineVideoInstance.prototype.activate = function (index, play) {
+    var item = this.playlist[index];
+    if (!item) return;
+
+    if (index !== this.loadedIndex) { this.teardown(); }
+    this.current = index;
+    this.hideCovers();
+
+    // Lead-capture gate: show the form before anything else (once per item).
+    if (item.form && !this.formDone[this.keyOf(item, index)]) {
+      this.showForm(item, index);
+      this.updateThumbs(index);
+      return;
+    }
+
+    if (this.loadedIndex !== index) {
+      this.loadMedia(item, index, play);
+      this.loadedIndex = index;
+    } else if (play && this._video) {
+      // self-hosted clip already loaded as a muted preview — just turn on sound.
+      this._video.controls = true;
+      this._video.muted = false;
+      if (this._video.paused) { var p = this._video.play(); if (p && p.catch) p.catch(function () {}); }
+    } else if (play && !this._video) {
+      // provider clip already loaded muted — reload with sound + controls.
+      this.loadMedia(item, index, true);
+    }
+
+    if (play) {
+      this.stage.classList.add('ivp-playing');
+      this.emit('play');
+    }
+    this.updateMuteIcon();
+    this.updateOverlay(item);
+    this.updateThumbs(index);
+  };
+
+  InlineVideoInstance.prototype.loadMedia = function (item, index, play) {
+    var self = this;
+    var source = detectSource(item);
+    var hasChoices = !!(item.choices && item.choices.length);
+    // A clip with choices must end (so we can show them), so never loop it.
+    var effLoop = this.config.loop && !hasChoices;
+    var analyticsOn = !!(this.config.onEvent || this.config.gtm);
+
+    this.media.innerHTML = '';
+
+    if (source.type === 'file') {
+      var video = el('video', null, { playsinline: '', preload: 'metadata' });
+      video.muted = play ? false : this.config.muted;
+      video.loop = effLoop;
+      video.controls = !!play;
+      if (item.poster) video.poster = item.poster;
+      var s = el('source', null, { src: source.id });
+      if (item.mime) s.type = item.mime;
+      video.appendChild(s);
+      video.addEventListener('ended', function () { self.handleEnded(index); });
+      this.media.appendChild(video);
+      this._video = video;
+      if (play || this.config.autoplay) {
+        var pr = video.play(); if (pr && pr.catch) pr.catch(function () {});
+      }
+    } else {
+      this._video = null;
+      var iframe = el('iframe', null, {
+        src: providerEmbed(source, {
+          autoplay: play || this.config.autoplay,
+          muted: play ? false : this.config.muted,
+          loop: effLoop,
+          controls: !!play
+        }),
+        allow: 'autoplay; fullscreen; picture-in-picture',
+        allowfullscreen: ''
+      });
+      this.media.appendChild(iframe);
+      // Wire end-detection only when we need it (branching or analytics).
+      if (hasChoices || analyticsOn) this.attachProviderEnd(source, iframe, index);
+    }
+  };
+
+  // Attach provider end-detection so branching/analytics work on YT & Vimeo.
+  InlineVideoInstance.prototype.attachProviderEnd = function (source, iframe, index) {
+    var self = this;
+    if (source.type === 'youtube') {
+      ensureYT().then(function (YT) {
+        if (self.loadedIndex !== index && self.current !== index) return;
+        self._ytPlayer = new YT.Player(iframe, {
+          events: {
+            onStateChange: function (e) { if (e.data === 0 /* ENDED */) self.handleEnded(index); }
+          }
+        });
+      }).catch(function () { /* API blocked; choices still reachable via replay/CTAs */ });
+    } else {
+      ensureVimeo().then(function (Vimeo) {
+        if (self.current !== index) return;
+        self._vimeoPlayer = new Vimeo.Player(iframe);
+        self._vimeoPlayer.on('ended', function () { self.handleEnded(index); });
+      }).catch(function () {});
+    }
+  };
+
+  InlineVideoInstance.prototype.handleEnded = function (index) {
+    if (index !== this.current) return;
+    var item = this.playlist[index];
+    this.emit('ended');
+    if (item.choices && item.choices.length) this.showChoices(item);
+  };
+
+  /* ---- branching end-screen ---- */
+  InlineVideoInstance.prototype.showChoices = function (item) {
+    var self = this;
+    this.choicesEl.innerHTML = '';
+    var head = el('h4');
+    head.textContent = item.choicesPrompt || 'What would you like to do next?';
+    this.choicesEl.appendChild(head);
+
+    var grid = el('div', 'ivp-choices-grid');
+    (item.choices || []).forEach(function (choice) {
+      var btn = el('button', 'ivp-choice', { type: 'button' });
+      btn.textContent = choice.label || 'Continue';
+      btn.addEventListener('click', function () {
+        if (choice.goto != null) {
+          self.emit('choice', { label: choice.label, goto: String(choice.goto) });
+          var target = self.resolveIndex(choice.goto);
+          if (target >= 0) self.activate(target, true);
+        } else if (choice.url) {
+          self.emit('choice', { label: choice.label, url: choice.url });
+          self.emit('cta', { label: choice.label, url: choice.url });
+          global.open(choice.url, choice.newTab === false ? '_self' : '_blank', 'noopener');
+        }
+      });
+      grid.appendChild(btn);
+    });
+    this.choicesEl.appendChild(grid);
+
+    var replay = el('button', 'ivp-replay', { type: 'button' });
+    replay.textContent = 'Replay';
+    replay.addEventListener('click', function () {
+      self.hideCovers();
+      self.loadedIndex = -1;
+      self.activate(self.current, true);
+    });
+    this.choicesEl.appendChild(replay);
+    this.choicesEl.classList.add('ivp-show');
+  };
+
+  /* ---- lead-capture form ---- */
+  InlineVideoInstance.prototype.showForm = function (item, index) {
+    var self = this;
+    var form = item.form;
+    this.formEl.innerHTML = '';
+    if (form.title) { var h = el('h4'); h.textContent = form.title; this.formEl.appendChild(h); }
+    if (form.description) { var d = el('p', 'ivp-cover-sub'); d.textContent = form.description; this.formEl.appendChild(d); }
+
+    var formNode = el('form', 'ivp-form');
+    (form.fields || [{ name: 'email', label: 'Work email', type: 'email', required: true }]).forEach(function (f) {
+      var wrap = el('div', 'ivp-field');
+      var lbl = el('label'); lbl.textContent = f.label || f.name; lbl.setAttribute('for', 'ivp-' + f.name);
+      wrap.appendChild(lbl);
+      var input;
+      if (f.type === 'textarea') {
+        input = el('textarea', null, { rows: '3' });
+      } else if (f.type === 'select') {
+        input = el('select');
+        (f.options || []).forEach(function (o) {
+          var opt = el('option'); opt.value = o.value != null ? o.value : o; opt.textContent = o.label != null ? o.label : o;
+          input.appendChild(opt);
+        });
+      } else {
+        input = el('input', null, { type: f.type || 'text' });
+      }
+      input.id = 'ivp-' + f.name;
+      input.name = f.name;
+      if (f.placeholder) input.setAttribute('placeholder', f.placeholder);
+      if (f.required) input.required = true;
+      wrap.appendChild(input);
+      formNode.appendChild(wrap);
+    });
+
+    var submit = el('button', 'ivp-btn', { type: 'submit' });
+    submit.textContent = form.submitLabel || 'Continue';
+    formNode.appendChild(submit);
+    if (form.note) { var note = el('p', 'ivp-form-note'); note.textContent = form.note; formNode.appendChild(note); }
+
+    formNode.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = {};
+      Array.prototype.forEach.call(formNode.elements, function (input) {
+        if (input.name) data[input.name] = input.value;
+      });
+      self.emit('lead', { fields: data });
+      // Optional POST to your endpoint.
+      if (form.action) {
+        try {
+          global.fetch(form.action, {
+            method: form.method || 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          }).catch(function () {});
+        } catch (err) { /* ignore network errors */ }
+      }
+      self.formDone[self.keyOf(item, index)] = true;
+      self.hideCovers();
+      if (form.goto != null) {
+        var target = self.resolveIndex(form.goto);
+        if (target >= 0) { self.activate(target, true); return; }
+      }
+      // Otherwise continue with this item's own video (gate scenario).
+      self.loadedIndex = -1;
+      self.activate(index, true);
+    });
+
+    this.formEl.appendChild(formNode);
+    this.formEl.classList.add('ivp-show');
+    this.updateOverlay(item);
+  };
+
+  /* ---- overlay / thumbs / mute ---- */
+  InlineVideoInstance.prototype.updateOverlay = function (item) {
+    this.titleEl.textContent = item.title || '';
+    this.descEl.textContent = item.description || '';
+    this.ctaRow.innerHTML = '';
+    var ctas = item.cta ? (Array.isArray(item.cta) ? item.cta : [item.cta]) : [];
+    var self = this;
+    ctas.forEach(function (cta, idx) {
+      var a = el('a', 'ivp-btn' + (idx > 0 ? ' ivp-btn--ghost' : ''), {
+        href: cta.url,
+        target: cta.newTab === false ? '_self' : '_blank',
+        rel: 'noopener'
+      });
+      a.textContent = cta.label || 'Learn more';
+      a.addEventListener('click', function (e) {
+        e.stopPropagation();
+        self.emit('cta', { label: cta.label, url: cta.url });
+      });
+      self.ctaRow.appendChild(a);
+    });
+  };
+
+  InlineVideoInstance.prototype.updateThumbs = function (index) {
+    if (!this.rail) return;
+    Array.prototype.forEach.call(this.rail.children, function (child) {
+      child.classList.toggle('ivp-active', child._ivpIndex === index);
+    });
+  };
+
+  InlineVideoInstance.prototype.toggleMute = function () {
+    if (!this._video) return;
+    this._video.muted = !this._video.muted;
+    if (!this._video.muted && this._video.paused) this._video.play();
+    this.updateMuteIcon();
+  };
+
+  InlineVideoInstance.prototype.updateMuteIcon = function () {
+    if (!this.muteBtn) return;
+    var muted = this._video ? this._video.muted : true;
+    this.muteBtn.innerHTML = muted ? MUTE_SVG : UNMUTE_SVG;
+  };
+
+  /* ------------------------------ public API ------------------------------ */
+
+  var InlineVideo = {
+    instances: [],
+
+    mount: function (target, config) {
+      injectStyles();
+      var node = typeof target === 'string' ? document.querySelector(target) : target;
+      if (!node) return null;
+      var inst = new InlineVideoInstance(node, config);
+      this.instances.push(inst);
+      return inst;
+    },
+
+    autoInit: function () {
+      var self = this;
+      var nodes = document.querySelectorAll('[data-inline-video]');
+      Array.prototype.forEach.call(nodes, function (node) {
+        if (node._ivpMounted) return;
+        node._ivpMounted = true;
+        var raw = node.getAttribute('data-inline-video');
+        var cfg = {};
+        if (raw && raw.trim()) {
+          try { cfg = JSON.parse(raw); }
+          catch (e) { console.error('[InlineVideo] Invalid JSON in data-inline-video:', e); return; }
+        }
+        if (cfg.configRef && global.InlineVideoConfig) {
+          cfg = global.InlineVideoConfig[cfg.configRef] || cfg;
+        }
+        self.mount(node, cfg);
+      });
+    }
+  };
+
+  global.InlineVideo = InlineVideo;
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { InlineVideo.autoInit(); });
+  } else {
+    InlineVideo.autoInit();
+  }
+})(typeof window !== 'undefined' ? window : this);
