@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InlineVideo — Flow Editor</title>
+  <style>
+    :root{--ink:#0b1020;--muted:#5b6478;--line:#e3e8f0;--accent:#2563eb;--bg:#f6f8fc}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      color:var(--ink);background:var(--bg);line-height:1.5}
+    .bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+      background:#fff;border-bottom:1px solid var(--line);padding:12px 20px;position:sticky;top:0;z-index:10}
+    .brand{font-weight:800;font-size:1.05rem}
+    .brand small{font-weight:500;color:var(--muted);margin-left:8px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    button,.filebtn{appearance:none;font:inherit;font-weight:600;border:1px solid var(--line);
+      background:#fff;color:var(--ink);border-radius:9px;padding:8px 13px;cursor:pointer;transition:all .12s}
+    button:hover,.filebtn:hover{border-color:var(--accent);color:var(--accent)}
+    button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    button.primary:hover{filter:brightness(1.08);color:#fff}
+    button.tiny{padding:4px 9px;font-size:.8rem;border-radius:7px}
+    button.danger:hover{border-color:#dc2626;color:#dc2626}
+    .filebtn{display:inline-flex;align-items:center}
+    .filebtn input{display:none}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;
+      max-width:1280px;margin:0 auto;padding:18px 20px 60px}
+    @media (max-width:900px){.layout{grid-template-columns:1fr}}
+    .panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:18px}
+    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;
+      font-weight:700;margin:-2px 0 12px}
+    .panel-head .grow{flex:1}
+    label.fld{display:block;margin:10px 0 0}
+    label.fld span{display:block;font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:3px}
+    input[type=text],input[type=url],input[type=email],input[type=number],textarea,select{
+      width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+    textarea{resize:vertical;min-height:58px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .row .fld{flex:1;min-width:120px;margin-top:0}
+    .check{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;font-weight:600;margin-top:10px}
+    .check input{width:auto}
+    .nodes{display:flex;flex-direction:column;gap:8px}
+    .node{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;
+      padding:9px 11px;cursor:pointer;background:#fff}
+    .node:hover{border-color:var(--accent)}
+    .node.sel{border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.15)}
+    .node .ic{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+      background:#eef3ff;color:var(--accent);font-size:.85rem;flex:0 0 auto}
+    .node .ic.form{background:#fff4e6;color:#b55908}
+    .node .nm{flex:1;min-width:0}
+    .node .nm b{display:block;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .node .nm code{font-size:.72rem;color:var(--muted)}
+    .node .ctl{display:flex;gap:4px}
+    .sub{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:8px}
+    .sub .row{margin-bottom:6px}
+    .hint{font-size:.78rem;color:var(--muted);margin:6px 0 0}
+    .empty{color:var(--muted);font-size:.9rem;padding:14px;text-align:center}
+    #snippet-out{width:100%;min-height:150px;font:.78rem/1.45 ui-monospace,Menlo,Consolas,monospace;
+      background:#0b1020;color:#cfe1ff;border:0;border-radius:10px;padding:12px}
+    .preview-note{font-size:.78rem;color:var(--muted);margin:8px 0 0}
+    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#0b1020;color:#fff;
+      padding:10px 18px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+    .toast.show{opacity:1}
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">InlineVideo <small>Flow Editor</small></div>
+    <div class="actions">
+      <button id="btn-new">New</button>
+      <label class="filebtn">Load project<input type="file" id="file-load" accept="application/json,.json"></label>
+      <button id="btn-save">Download project</button>
+      <button id="btn-snippet">Copy embed snippet</button>
+      <button id="btn-standalone" class="primary">Download standalone page</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="col-edit">
+      <div class="panel" id="settings"></div>
+      <div class="panel">
+        <div class="panel-head"><span class="grow">Flow steps</span>
+          <button class="tiny" id="add-video">+ Video</button>
+          <button class="tiny" id="add-form">+ Lead form</button>
+        </div>
+        <div class="nodes" id="node-list"></div>
+      </div>
+      <div class="panel" id="node-editor"></div>
+    </section>
+
+    <aside class="col-preview">
+      <div class="panel">
+        <div class="panel-head"><span class="grow">Live preview</span>
+          <button class="tiny" id="btn-refresh">&#8635; Restart</button>
+        </div>
+        <div id="preview"></div>
+        <p class="preview-note">Tip: branching choices appear when a clip ends. Use the thumbnail rail to jump between steps while editing.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><span class="grow">Embed snippet</span>
+          <button class="tiny" id="btn-copy2">Copy</button>
+        </div>
+        <textarea id="snippet-out" readonly></textarea>
+        <p class="hint">Upload <code>inline-video-plugin.js</code> next to your page, then paste this where the video should appear.</p>
+      </div>
+    </aside>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Plugin source (used for live preview AND for the standalone export) -->
+  <script type="text/plain" id="ivp-src">
+/*!
+ * InlineVideo — a tiny, dependency-free interactive-video plugin for sales pages.
+ *
+ * Features
+ *  - Plays video inline (muted autoplay, like modern sales/landing pages),
+ *    with a click to unmute + show full controls.
+ *  - Supports self-hosted MP4/WebM, YouTube, and Vimeo sources.
+ *  - A clickable playlist so visitors can browse "more videos".
+ *  - BRANCHING FLOWS ("choose your path"): when a clip ends, show choice
+ *    buttons that route the viewer to a different next video — a decision tree.
+ *  - LEAD CAPTURE: gate a clip (or insert a standalone step) behind an
+ *    email/contact form before continuing the flow.
+ *  - CALLS-TO-ACTION that visit any webpage.
+ *  - ANALYTICS HOOKS: every play / choice / CTA / lead fires a trackable event
+ *    (callback, GTM dataLayer, and a DOM CustomEvent) so you can wire it to GA,
+ *    GTM, or your own endpoint.
+ *  - No build step, no dependencies. Drop the <script> on any page.
+ *
+ * Usage (declarative):
+ *   <div data-inline-video='{ ...config... }'></div>
+ *   <script src="inline-video-plugin.js"><\/script>
+ *
+ * Usage (programmatic):
+ *   InlineVideo.mount('#my-el', { playlist: [ ... ] });
+ *
+ * See README.md for the full config reference.
+ */
+(function (global) {
+  'use strict';
+
+  var STYLE_ID = 'inline-video-styles';
+
+  /* ------------------------------------------------------------------ *
+   * Styles — injected once so the plugin is a true single-file drop-in.
+   * Everything is namespaced under .ivp- to avoid clashing with the host
+   * page. Colours are driven by CSS custom properties for easy theming.
+   * ------------------------------------------------------------------ */
+  var CSS = [
+    '.ivp{--ivp-accent:#2563eb;--ivp-bg:#0b1020;--ivp-radius:14px;',
+    'font-family:inherit;color:#fff;width:100%;box-sizing:border-box}',
+    '.ivp *{box-sizing:border-box}',
+    '.ivp-stage{position:relative;width:100%;aspect-ratio:16/9;background:var(--ivp-bg);',
+    'border-radius:var(--ivp-radius);overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.25)}',
+    '.ivp-stage video,.ivp-stage iframe{position:absolute;inset:0;width:100%;height:100%;',
+    'border:0;object-fit:cover;display:block}',
+    '.ivp-overlay{position:absolute;inset:0;display:flex;flex-direction:column;',
+    'justify-content:flex-end;padding:18px 20px;gap:10px;cursor:pointer;',
+    'background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(0,0,0,.65) 100%);',
+    'transition:opacity .3s ease}',
+    '.ivp-stage.ivp-playing .ivp-overlay{opacity:0;pointer-events:none}',
+    '.ivp-stage.ivp-playing:hover .ivp-overlay{opacity:1;pointer-events:auto}',
+    '.ivp-title{font-size:1.25rem;font-weight:700;margin:0;line-height:1.2;',
+    'text-shadow:0 1px 8px rgba(0,0,0,.6)}',
+    '.ivp-desc{font-size:.9rem;margin:0;opacity:.9;max-width:80%;',
+    'text-shadow:0 1px 8px rgba(0,0,0,.6)}',
+    '.ivp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}',
+    '.ivp-btn{appearance:none;border:0;cursor:pointer;font:inherit;font-weight:600;',
+    'padding:9px 16px;border-radius:999px;background:var(--ivp-accent);color:#fff;',
+    'text-decoration:none;display:inline-flex;align-items:center;gap:7px;',
+    'transition:transform .12s ease,filter .12s ease}',
+    '.ivp-btn:hover{transform:translateY(-1px);filter:brightness(1.08)}',
+    '.ivp-btn--ghost{background:rgba(255,255,255,.16);backdrop-filter:blur(4px)}',
+    '.ivp-playbtn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);',
+    'width:74px;height:74px;border-radius:50%;background:rgba(0,0,0,.45);',
+    'display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);',
+    'border:2px solid rgba(255,255,255,.85);transition:transform .15s ease,background .15s ease}',
+    '.ivp-overlay:hover .ivp-playbtn{transform:translate(-50%,-50%) scale(1.06);background:var(--ivp-accent)}',
+    '.ivp-playbtn svg{width:30px;height:30px;margin-left:4px;fill:#fff}',
+    '.ivp-mute{position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;',
+    'background:rgba(0,0,0,.5);border:0;cursor:pointer;display:none;align-items:center;',
+    'justify-content:center;backdrop-filter:blur(4px);z-index:3}',
+    '.ivp-stage.ivp-playing .ivp-mute{display:flex}',
+    '.ivp-mute svg{width:20px;height:20px;fill:#fff}',
+    /* covers: branching end-screen + lead form, shown over the stage */
+    '.ivp-cover{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;',
+    'justify-content:center;gap:16px;padding:24px;background:rgba(8,12,28,.92);',
+    'backdrop-filter:blur(6px);z-index:5;text-align:center}',
+    '.ivp-cover.ivp-show{display:flex}',
+    '.ivp-cover h4{margin:0;font-size:1.2rem;font-weight:700;line-height:1.25}',
+    '.ivp-cover p.ivp-cover-sub{margin:0;opacity:.8;font-size:.9rem;max-width:460px}',
+    '.ivp-choices-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:560px}',
+    '.ivp-choice{appearance:none;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);',
+    'color:#fff;font:inherit;font-weight:600;padding:12px 18px;border-radius:12px;cursor:pointer;',
+    'transition:background .15s ease,transform .12s ease,border-color .15s ease}',
+    '.ivp-choice:hover{background:var(--ivp-accent);border-color:var(--ivp-accent);transform:translateY(-1px)}',
+    '.ivp-replay{background:none;border:0;color:rgba(255,255,255,.7);cursor:pointer;font:inherit;',
+    'text-decoration:underline;padding:4px}',
+    '.ivp-form{width:100%;max-width:380px;display:flex;flex-direction:column;gap:10px;text-align:left}',
+    '.ivp-field{display:flex;flex-direction:column;gap:4px}',
+    '.ivp-field label{font-size:.8rem;font-weight:600;opacity:.9}',
+    '.ivp-field input,.ivp-field select,.ivp-field textarea{font:inherit;padding:10px 12px;',
+    'border-radius:9px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.95);color:#0b1020}',
+    '.ivp-form .ivp-btn{justify-content:center;margin-top:4px}',
+    '.ivp-form-note{font-size:.72rem;opacity:.65;margin:2px 0 0}',
+    /* playlist rail */
+    '.ivp-rail{display:flex;gap:12px;overflow-x:auto;padding:14px 2px 4px;scroll-snap-type:x mandatory}',
+    '.ivp-rail::-webkit-scrollbar{height:8px}',
+    '.ivp-rail::-webkit-scrollbar-thumb{background:rgba(127,127,127,.4);border-radius:8px}',
+    '.ivp-thumb{flex:0 0 168px;scroll-snap-align:start;cursor:pointer;border-radius:10px;',
+    'overflow:hidden;background:var(--ivp-bg);border:2px solid transparent;',
+    'transition:border-color .15s ease,transform .15s ease;text-align:left;padding:0;color:inherit;font:inherit}',
+    '.ivp-thumb:hover{transform:translateY(-2px)}',
+    '.ivp-thumb.ivp-active{border-color:var(--ivp-accent)}',
+    '.ivp-thumb-img{position:relative;width:100%;aspect-ratio:16/9;background:#1b2440 center/cover no-repeat}',
+    '.ivp-thumb-img::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.15)}',
+    '.ivp-thumb-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);',
+    'width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.5);display:flex;',
+    'align-items:center;justify-content:center;z-index:2}',
+    '.ivp-thumb-play svg{width:15px;height:15px;fill:#fff;margin-left:2px}',
+    '.ivp-thumb-meta{padding:8px 10px}',
+    '.ivp-thumb-title{font-size:.82rem;font-weight:600;margin:0;line-height:1.25;',
+    'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
+    '.ivp-badge{font-size:.7rem;opacity:.7;margin-top:2px;display:block}',
+    '@media (max-width:520px){.ivp-thumb{flex-basis:140px}.ivp-title{font-size:1.05rem}',
+    '.ivp-desc{display:none}}'
+  ].join('');
+
+  function injectStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = CSS;
+    document.head.appendChild(s);
+  }
+
+  /* ------------------------------ helpers ------------------------------ */
+
+  function el(tag, cls, attrs) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (attrs) Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    return node;
+  }
+
+  var PLAY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  var MUTE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM3 9v6h4l5 5V4L7 9H3z"/><line x1="2" y1="2" x2="22" y2="22" stroke="#fff" stroke-width="2"/></svg>';
+  var UNMUTE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/></svg>';
+
+  // Lazy-load an external script once; returns a Promise.
+  var scriptPromises = {};
+  function loadScript(src) {
+    if (scriptPromises[src]) return scriptPromises[src];
+    scriptPromises[src] = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src; s.async = true;
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    return scriptPromises[src];
+  }
+
+  // Provider JS APIs (loaded only when a clip needs end-detection).
+  var ytReady = null;
+  function ensureYT() {
+    if (global.YT && global.YT.Player) return Promise.resolve(global.YT);
+    if (!ytReady) {
+      ytReady = new Promise(function (resolve) {
+        var prev = global.onYouTubeIframeAPIReady;
+        global.onYouTubeIframeAPIReady = function () {
+          if (typeof prev === 'function') { try { prev(); } catch (e) {} }
+          resolve(global.YT);
+        };
+        loadScript('https://www.youtube.com/iframe_api');
+      });
+    }
+    return ytReady;
+  }
+  function ensureVimeo() {
+    if (global.Vimeo && global.Vimeo.Player) return Promise.resolve(global.Vimeo);
+    return loadScript('https://player.vimeo.com/api/player.js').then(function () { return global.Vimeo; });
+  }
+
+  // Detect a provider from a URL. Returns {type, id}.
+  function detectSource(item) {
+    if (item.type === 'youtube' || item.type === 'vimeo' || item.type === 'file') {
+      return { type: item.type, id: item.videoId || item.src };
+    }
+    var url = item.src || '';
+    var yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
+    if (yt) return { type: 'youtube', id: yt[1] };
+    var vm = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+    if (vm) return { type: 'vimeo', id: vm[1] };
+    return { type: 'file', id: url };
+  }
+
+  // Build an autoplay/preview embed URL for iframe providers.
+  function providerEmbed(source, opts) {
+    var muted = opts.muted ? 1 : 0;
+    var auto = opts.autoplay ? 1 : 0;
+    if (source.type === 'youtube') {
+      var loopParams = opts.loop ? '&loop=1&playlist=' + source.id : '';
+      return 'https://www.youtube.com/embed/' + source.id +
+        '?autoplay=' + auto + '&mute=' + muted + '&controls=' + (opts.controls ? 1 : 0) +
+        '&rel=0&modestbranding=1&playsinline=1&enablejsapi=1' + loopParams;
+    }
+    return 'https://player.vimeo.com/video/' + source.id +
+      '?autoplay=' + auto + '&muted=' + muted + '&loop=' + (opts.loop ? 1 : 0) +
+      '&controls=' + (opts.controls ? 1 : 0) + '&playsinline=1&dnt=1';
+  }
+
+  /* ------------------------------ instance ------------------------------ */
+
+  function InlineVideoInstance(root, config) {
+    this.root = root;
+    this.config = Object.assign({
+      autoplay: true,     // start the first video automatically
+      muted: true,        // inline autoplay must be muted to be allowed by browsers
+      loop: true,         // loop the inline preview (disabled for clips that have choices)
+      showPlaylist: true, // render the "more videos" rail
+      accent: null,       // override accent colour
+      startIndex: 0,
+      onEvent: null,      // analytics callback: fn(eventName, detail)
+      gtm: false          // also push events to window.dataLayer for GTM
+    }, config || {});
+    this.playlist = (this.config.playlist || []).slice();
+    this.current = -1;
+    this.loadedIndex = -1; // which item's media is currently in the stage
+    this.formDone = {};    // gated/standalone forms already submitted
+    this._ytPlayer = null;
+    this._vimeoPlayer = null;
+    this.render();
+  }
+
+  // A stable key for an item (its id, or fall back to its index).
+  InlineVideoInstance.prototype.keyOf = function (item, index) {
+    return item.id != null ? String(item.id) : 'idx' + index;
+  };
+
+  // Resolve a branch/goto reference (an id or numeric index) to an index.
+  InlineVideoInstance.prototype.resolveIndex = function (ref) {
+    if (ref == null) return -1;
+    if (typeof ref === 'number') return ref;
+    for (var i = 0; i < this.playlist.length; i++) {
+      if (String(this.playlist[i].id) === String(ref)) return i;
+    }
+    return -1;
+  };
+
+  /* ---- analytics ---- */
+  InlineVideoInstance.prototype.emit = function (name, detail) {
+    detail = detail || {};
+    var item = this.playlist[this.current];
+    if (item) {
+      if (detail.video == null) detail.video = this.keyOf(item, this.current);
+      if (detail.title == null) detail.title = item.title || '';
+    }
+    if (typeof this.config.onEvent === 'function') {
+      try { this.config.onEvent(name, detail); } catch (e) { /* never break playback for analytics */ }
+    }
+    if (this.config.gtm && global.dataLayer && global.dataLayer.push) {
+      global.dataLayer.push(Object.assign({ event: 'inlinevideo_' + name }, detail));
+    }
+    try {
+      this.root.dispatchEvent(new CustomEvent('inlinevideo:' + name, { detail: detail, bubbles: true }));
+    } catch (e) { /* CustomEvent unsupported */ }
+  };
+
+  /* ---- render skeleton ---- */
+  InlineVideoInstance.prototype.render = function () {
+    var self = this;
+    var c = this.config;
+    this.root.innerHTML = '';
+    this.root.classList.add('ivp');
+    if (c.accent) this.root.style.setProperty('--ivp-accent', c.accent);
+
+    this.stage = el('div', 'ivp-stage');
+    this.media = el('div', 'ivp-media');
+    this.stage.appendChild(this.media);
+
+    this.muteBtn = el('button', 'ivp-mute', { 'aria-label': 'Toggle sound', type: 'button' });
+    this.muteBtn.innerHTML = MUTE_SVG;
+    this.muteBtn.addEventListener('click', function (e) { e.stopPropagation(); self.toggleMute(); });
+    this.stage.appendChild(this.muteBtn);
+
+    // overlay (title/desc/CTAs + play button)
+    this.overlay = el('div', 'ivp-overlay');
+    this.playBtn = el('div', 'ivp-playbtn');
+    this.playBtn.innerHTML = PLAY_SVG;
+    this.overlay.appendChild(this.playBtn);
+    this.titleEl = el('h3', 'ivp-title');
+    this.descEl = el('p', 'ivp-desc');
+    this.ctaRow = el('div', 'ivp-row');
+    this.overlay.appendChild(this.titleEl);
+    this.overlay.appendChild(this.descEl);
+    this.overlay.appendChild(this.ctaRow);
+    this.overlay.addEventListener('click', function () { self.activate(self.current, true); });
+    this.stage.appendChild(this.overlay);
+
+    // branching end-screen cover
+    this.choicesEl = el('div', 'ivp-cover');
+    this.stage.appendChild(this.choicesEl);
+
+    // lead-capture form cover
+    this.formEl = el('div', 'ivp-cover');
+    this.stage.appendChild(this.formEl);
+
+    this.root.appendChild(this.stage);
+
+    if (c.showPlaylist && this.playlist.length > 1) {
+      this.rail = el('div', 'ivp-rail');
+      this.playlist.forEach(function (item, i) { self.rail.appendChild(self.buildThumb(item, i)); });
+      this.root.appendChild(this.rail);
+    }
+
+    if (this.playlist.length) {
+      this.activate(Math.min(c.startIndex, this.playlist.length - 1), false);
+    } else {
+      this.titleEl.textContent = 'No videos configured';
+      this.playBtn.style.display = 'none';
+    }
+  };
+
+  InlineVideoInstance.prototype.buildThumb = function (item, i) {
+    var self = this;
+    var btn = el('button', 'ivp-thumb', { type: 'button', 'aria-label': item.title || ('Video ' + (i + 1)) });
+    var img = el('div', 'ivp-thumb-img');
+    if (item.poster) img.style.backgroundImage = 'url("' + item.poster + '")';
+    var play = el('div', 'ivp-thumb-play');
+    play.innerHTML = PLAY_SVG;
+    img.appendChild(play);
+    var meta = el('div', 'ivp-thumb-meta');
+    var t = el('p', 'ivp-thumb-title');
+    t.textContent = item.title || ('Video ' + (i + 1));
+    meta.appendChild(t);
+    if (item.badge) {
+      var b = el('span', 'ivp-badge');
+      b.textContent = item.badge;
+      meta.appendChild(b);
+    }
+    btn.appendChild(img);
+    btn.appendChild(meta);
+    btn.addEventListener('click', function () { self.activate(i, true); });
+    btn._ivpIndex = i;
+    return btn;
+  };
+
+  /* ---- core navigation ---- */
+
+  // Tear down any provider player + media when leaving a clip.
+  InlineVideoInstance.prototype.teardown = function () {
+    if (this._ytPlayer && this._ytPlayer.destroy) { try { this._ytPlayer.destroy(); } catch (e) {} }
+    if (this._vimeoPlayer && this._vimeoPlayer.destroy) { try { this._vimeoPlayer.destroy(); } catch (e) {} }
+    this._ytPlayer = null;
+    this._vimeoPlayer = null;
+    this._video = null;
+  };
+
+  InlineVideoInstance.prototype.hideCovers = function () {
+    this.choicesEl.classList.remove('ivp-show');
+    this.formEl.classList.remove('ivp-show');
+  };
+
+  // play=true means the user asked to play (honour sound/controls); play=false
+  // is a passive preview load.
+  InlineVideoInstance.prototype.activate = function (index, play) {
+    var item = this.playlist[index];
+    if (!item) return;
+
+    if (index !== this.loadedIndex) { this.teardown(); }
+    this.current = index;
+    this.hideCovers();
+
+    // Lead-capture gate: show the form before anything else (once per item).
+    if (item.form && !this.formDone[this.keyOf(item, index)]) {
+      this.showForm(item, index);
+      this.updateThumbs(index);
+      return;
+    }
+
+    if (this.loadedIndex !== index) {
+      this.loadMedia(item, index, play);
+      this.loadedIndex = index;
+    } else if (play && this._video) {
+      // self-hosted clip already loaded as a muted preview — just turn on sound.
+      this._video.controls = true;
+      this._video.muted = false;
+      if (this._video.paused) { var p = this._video.play(); if (p && p.catch) p.catch(function () {}); }
+    } else if (play && !this._video) {
+      // provider clip already loaded muted — reload with sound + controls.
+      this.loadMedia(item, index, true);
+    }
+
+    if (play) {
+      this.stage.classList.add('ivp-playing');
+      this.emit('play');
+    }
+    this.updateMuteIcon();
+    this.updateOverlay(item);
+    this.updateThumbs(index);
+  };
+
+  InlineVideoInstance.prototype.loadMedia = function (item, index, play) {
+    var self = this;
+    var source = detectSource(item);
+    var hasChoices = !!(item.choices && item.choices.length);
+    // A clip with choices must end (so we can show them), so never loop it.
+    var effLoop = this.config.loop && !hasChoices;
+    var analyticsOn = !!(this.config.onEvent || this.config.gtm);
+
+    this.media.innerHTML = '';
+
+    if (source.type === 'file') {
+      var video = el('video', null, { playsinline: '', preload: 'metadata' });
+      video.muted = play ? false : this.config.muted;
+      video.loop = effLoop;
+      video.controls = !!play;
+      if (item.poster) video.poster = item.poster;
+      var s = el('source', null, { src: source.id });
+      if (item.mime) s.type = item.mime;
+      video.appendChild(s);
+      video.addEventListener('ended', function () { self.handleEnded(index); });
+      this.media.appendChild(video);
+      this._video = video;
+      if (play || this.config.autoplay) {
+        var pr = video.play(); if (pr && pr.catch) pr.catch(function () {});
+      }
+    } else {
+      this._video = null;
+      var iframe = el('iframe', null, {
+        src: providerEmbed(source, {
+          autoplay: play || this.config.autoplay,
+          muted: play ? false : this.config.muted,
+          loop: effLoop,
+          controls: !!play
+        }),
+        allow: 'autoplay; fullscreen; picture-in-picture',
+        allowfullscreen: ''
+      });
+      this.media.appendChild(iframe);
+      // Wire end-detection only when we need it (branching or analytics).
+      if (hasChoices || analyticsOn) this.attachProviderEnd(source, iframe, index);
+    }
+  };
+
+  // Attach provider end-detection so branching/analytics work on YT & Vimeo.
+  InlineVideoInstance.prototype.attachProviderEnd = function (source, iframe, index) {
+    var self = this;
+    if (source.type === 'youtube') {
+      ensureYT().then(function (YT) {
+        if (self.loadedIndex !== index && self.current !== index) return;
+        self._ytPlayer = new YT.Player(iframe, {
+          events: {
+            onStateChange: function (e) { if (e.data === 0 /* ENDED */) self.handleEnded(index); }
+          }
+        });
+      }).catch(function () { /* API blocked; choices still reachable via replay/CTAs */ });
+    } else {
+      ensureVimeo().then(function (Vimeo) {
+        if (self.current !== index) return;
+        self._vimeoPlayer = new Vimeo.Player(iframe);
+        self._vimeoPlayer.on('ended', function () { self.handleEnded(index); });
+      }).catch(function () {});
+    }
+  };
+
+  InlineVideoInstance.prototype.handleEnded = function (index) {
+    if (index !== this.current) return;
+    var item = this.playlist[index];
+    this.emit('ended');
+    if (item.choices && item.choices.length) this.showChoices(item);
+  };
+
+  /* ---- branching end-screen ---- */
+  InlineVideoInstance.prototype.showChoices = function (item) {
+    var self = this;
+    this.choicesEl.innerHTML = '';
+    var head = el('h4');
+    head.textContent = item.choicesPrompt || 'What would you like to do next?';
+    this.choicesEl.appendChild(head);
+
+    var grid = el('div', 'ivp-choices-grid');
+    (item.choices || []).forEach(function (choice) {
+      var btn = el('button', 'ivp-choice', { type: 'button' });
+      btn.textContent = choice.label || 'Continue';
+      btn.addEventListener('click', function () {
+        if (choice.goto != null) {
+          self.emit('choice', { label: choice.label, goto: String(choice.goto) });
+          var target = self.resolveIndex(choice.goto);
+          if (target >= 0) self.activate(target, true);
+        } else if (choice.url) {
+          self.emit('choice', { label: choice.label, url: choice.url });
+          self.emit('cta', { label: choice.label, url: choice.url });
+          global.open(choice.url, choice.newTab === false ? '_self' : '_blank', 'noopener');
+        }
+      });
+      grid.appendChild(btn);
+    });
+    this.choicesEl.appendChild(grid);
+
+    var replay = el('button', 'ivp-replay', { type: 'button' });
+    replay.textContent = 'Replay';
+    replay.addEventListener('click', function () {
+      self.hideCovers();
+      self.loadedIndex = -1;
+      self.activate(self.current, true);
+    });
+    this.choicesEl.appendChild(replay);
+    this.choicesEl.classList.add('ivp-show');
+  };
+
+  /* ---- lead-capture form ---- */
+  InlineVideoInstance.prototype.showForm = function (item, index) {
+    var self = this;
+    var form = item.form;
+    this.formEl.innerHTML = '';
+    if (form.title) { var h = el('h4'); h.textContent = form.title; this.formEl.appendChild(h); }
+    if (form.description) { var d = el('p', 'ivp-cover-sub'); d.textContent = form.description; this.formEl.appendChild(d); }
+
+    var formNode = el('form', 'ivp-form');
+    (form.fields || [{ name: 'email', label: 'Work email', type: 'email', required: true }]).forEach(function (f) {
+      var wrap = el('div', 'ivp-field');
+      var lbl = el('label'); lbl.textContent = f.label || f.name; lbl.setAttribute('for', 'ivp-' + f.name);
+      wrap.appendChild(lbl);
+      var input;
+      if (f.type === 'textarea') {
+        input = el('textarea', null, { rows: '3' });
+      } else if (f.type === 'select') {
+        input = el('select');
+        (f.options || []).forEach(function (o) {
+          var opt = el('option'); opt.value = o.value != null ? o.value : o; opt.textContent = o.label != null ? o.label : o;
+          input.appendChild(opt);
+        });
+      } else {
+        input = el('input', null, { type: f.type || 'text' });
+      }
+      input.id = 'ivp-' + f.name;
+      input.name = f.name;
+      if (f.placeholder) input.setAttribute('placeholder', f.placeholder);
+      if (f.required) input.required = true;
+      wrap.appendChild(input);
+      formNode.appendChild(wrap);
+    });
+
+    var submit = el('button', 'ivp-btn', { type: 'submit' });
+    submit.textContent = form.submitLabel || 'Continue';
+    formNode.appendChild(submit);
+    if (form.note) { var note = el('p', 'ivp-form-note'); note.textContent = form.note; formNode.appendChild(note); }
+
+    formNode.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = {};
+      Array.prototype.forEach.call(formNode.elements, function (input) {
+        if (input.name) data[input.name] = input.value;
+      });
+      self.emit('lead', { fields: data });
+      // Optional POST to your endpoint.
+      if (form.action) {
+        try {
+          global.fetch(form.action, {
+            method: form.method || 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          }).catch(function () {});
+        } catch (err) { /* ignore network errors */ }
+      }
+      self.formDone[self.keyOf(item, index)] = true;
+      self.hideCovers();
+      if (form.goto != null) {
+        var target = self.resolveIndex(form.goto);
+        if (target >= 0) { self.activate(target, true); return; }
+      }
+      // Otherwise continue with this item's own video (gate scenario).
+      self.loadedIndex = -1;
+      self.activate(index, true);
+    });
+
+    this.formEl.appendChild(formNode);
+    this.formEl.classList.add('ivp-show');
+    this.updateOverlay(item);
+  };
+
+  /* ---- overlay / thumbs / mute ---- */
+  InlineVideoInstance.prototype.updateOverlay = function (item) {
+    this.titleEl.textContent = item.title || '';
+    this.descEl.textContent = item.description || '';
+    this.ctaRow.innerHTML = '';
+    var ctas = item.cta ? (Array.isArray(item.cta) ? item.cta : [item.cta]) : [];
+    var self = this;
+    ctas.forEach(function (cta, idx) {
+      var a = el('a', 'ivp-btn' + (idx > 0 ? ' ivp-btn--ghost' : ''), {
+        href: cta.url,
+        target: cta.newTab === false ? '_self' : '_blank',
+        rel: 'noopener'
+      });
+      a.textContent = cta.label || 'Learn more';
+      a.addEventListener('click', function (e) {
+        e.stopPropagation();
+        self.emit('cta', { label: cta.label, url: cta.url });
+      });
+      self.ctaRow.appendChild(a);
+    });
+  };
+
+  InlineVideoInstance.prototype.updateThumbs = function (index) {
+    if (!this.rail) return;
+    Array.prototype.forEach.call(this.rail.children, function (child) {
+      child.classList.toggle('ivp-active', child._ivpIndex === index);
+    });
+  };
+
+  InlineVideoInstance.prototype.toggleMute = function () {
+    if (!this._video) return;
+    this._video.muted = !this._video.muted;
+    if (!this._video.muted && this._video.paused) this._video.play();
+    this.updateMuteIcon();
+  };
+
+  InlineVideoInstance.prototype.updateMuteIcon = function () {
+    if (!this.muteBtn) return;
+    var muted = this._video ? this._video.muted : true;
+    this.muteBtn.innerHTML = muted ? MUTE_SVG : UNMUTE_SVG;
+  };
+
+  /* ------------------------------ public API ------------------------------ */
+
+  var InlineVideo = {
+    instances: [],
+
+    mount: function (target, config) {
+      injectStyles();
+      var node = typeof target === 'string' ? document.querySelector(target) : target;
+      if (!node) return null;
+      var inst = new InlineVideoInstance(node, config);
+      this.instances.push(inst);
+      return inst;
+    },
+
+    autoInit: function () {
+      var self = this;
+      var nodes = document.querySelectorAll('[data-inline-video]');
+      Array.prototype.forEach.call(nodes, function (node) {
+        if (node._ivpMounted) return;
+        node._ivpMounted = true;
+        var raw = node.getAttribute('data-inline-video');
+        var cfg = {};
+        if (raw && raw.trim()) {
+          try { cfg = JSON.parse(raw); }
+          catch (e) { console.error('[InlineVideo] Invalid JSON in data-inline-video:', e); return; }
+        }
+        if (cfg.configRef && global.InlineVideoConfig) {
+          cfg = global.InlineVideoConfig[cfg.configRef] || cfg;
+        }
+        self.mount(node, cfg);
+      });
+    }
+  };
+
+  global.InlineVideo = InlineVideo;
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { InlineVideo.autoInit(); });
+  } else {
+    InlineVideo.autoInit();
+  }
+})(typeof window !== 'undefined' ? window : this);
+  </script>
+
+  <!-- Editor application -->
+  <script>
+  (function(){
+    'use strict';
+
+    /* ---- boot: make the plugin executable from the embedded source ---- */
+    var PLUGIN_SRC = document.getElementById('ivp-src').textContent;
+    (function(){ var s=document.createElement('script'); s.textContent=PLUGIN_SRC; document.head.appendChild(s); })();
+
+    var $ = function(sel){ return document.querySelector(sel); };
+    var STORE_KEY = 'inlinevideo_project_v1';
+
+    /* ---- state ---- */
+    function defaultProject(){
+      return {
+        settings:{ elementId:'my-video', accent:'#2563eb', autoplay:true, muted:true, loop:true, analytics:'none' },
+        playlist:[
+          { id:'intro', title:'Welcome — choose your path', description:'Watch the intro, then pick a branch.',
+            src:'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            poster:'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg',
+            badge:'Start here', choicesPrompt:'What would you like to see?',
+            cta:[], choices:[
+              { label:'Show me the demo', goto:'demo' },
+              { label:'Visit our website', url:'https://example.com' }
+            ] },
+          { id:'demo', title:'Product demo', description:'A quick walkthrough.',
+            src:'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+            poster:'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ElephantsDream.jpg',
+            badge:'Demo', choicesPrompt:'', cta:[{label:'Start free trial',url:'https://example.com/signup'}], choices:[] }
+        ]
+      };
+    }
+    var state = { project: load() || defaultProject(), selected: 0 };
+
+    function load(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)); }catch(e){ return null; } }
+    function persist(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state.project)); }catch(e){} }
+
+    function uid(base){
+      base = (base||'step').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'step';
+      var ids = state.project.playlist.map(function(n){return n.id;});
+      if(ids.indexOf(base)<0) return base;
+      var i=2; while(ids.indexOf(base+'-'+i)>=0) i++; return base+'-'+i;
+    }
+
+    /* ---- generic helpers ---- */
+    function el(tag,cls,txt){ var n=document.createElement(tag); if(cls)n.className=cls; if(txt!=null)n.textContent=txt; return n; }
+    function field(labelText, input){ var l=el('label','fld'); l.appendChild(el('span',null,labelText)); l.appendChild(input); return l; }
+    function textInput(val,ph,type){ var i=document.createElement('input'); i.type=type||'text'; i.value=val||''; if(ph)i.placeholder=ph; return i; }
+
+    var toastTimer;
+    function toast(msg){ var t=$('#toast'); t.textContent=msg; t.classList.add('show');
+      clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove('show');},1800); }
+
+    /* ---- change pipeline ---- */
+    var previewTimer;
+    function onChange(rebuildEditor){
+      persist();
+      renderNodeList();
+      updateSnippet();
+      schedulePreview();
+      if(rebuildEditor) renderNodeEditor();
+    }
+    function schedulePreview(){ clearTimeout(previewTimer); previewTimer=setTimeout(renderPreview,450); }
+
+    /* ---- settings panel ---- */
+    function renderSettings(){
+      var s=state.project.settings, box=$('#settings'); box.innerHTML='';
+      box.appendChild(el('div','panel-head','Global settings'));
+
+      var idIn=textInput(s.elementId,'my-video');
+      idIn.addEventListener('input',function(){ s.elementId=idIn.value.trim()||'my-video'; updateSnippet(); persist(); });
+      box.appendChild(field('Element id (where it mounts on your page)', idIn));
+
+      var acc=document.createElement('input'); acc.type='color'; acc.value=s.accent||'#2563eb';
+      acc.style.width='52px'; acc.style.height='38px'; acc.style.padding='2px';
+      var accTxt=textInput(s.accent,'#2563eb'); accTxt.style.flex='1';
+      function setAcc(v){ s.accent=v; acc.value=v; accTxt.value=v; onChange(); }
+      acc.addEventListener('input',function(){ setAcc(acc.value); });
+      accTxt.addEventListener('input',function(){ s.accent=accTxt.value; onChange(); });
+      var accRow=el('div','row'); accRow.style.marginTop='4px'; accRow.appendChild(acc); accRow.appendChild(accTxt);
+      box.appendChild(field('Accent colour', accRow));
+
+      var opts=el('div','row');
+      [['autoplay','Autoplay first clip'],['muted','Start muted'],['loop','Loop preview']].forEach(function(o){
+        var lab=el('label','check'); var c=document.createElement('input'); c.type='checkbox'; c.checked=!!s[o[0]];
+        c.addEventListener('change',function(){ s[o[0]]=c.checked; onChange(); });
+        lab.appendChild(c); lab.appendChild(document.createTextNode(o[1])); opts.appendChild(lab);
+      });
+      box.appendChild(opts);
+
+      var an=document.createElement('select');
+      [['none','No analytics'],['gtag','Google Analytics (gtag)'],['gtm','Google Tag Manager (dataLayer)']].forEach(function(o){
+        var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; an.appendChild(op);
+      });
+      an.value=s.analytics||'none';
+      an.addEventListener('change',function(){ s.analytics=an.value; onChange(); });
+      box.appendChild(field('Analytics', an));
+    }
+
+    /* ---- node list ---- */
+    function renderNodeList(){
+      var list=$('#node-list'); list.innerHTML='';
+      if(!state.project.playlist.length){ list.appendChild(el('div','empty','No steps yet. Add a video or lead form above.')); return; }
+      state.project.playlist.forEach(function(node,i){
+        var isForm=!!node.form;
+        var row=el('div','node'+(i===state.selected?' sel':''));
+        var ic=el('div','ic'+(isForm?' form':'')); ic.innerHTML=isForm?'&#9993;':'&#9658;'; row.appendChild(ic);
+        var nm=el('div','nm');
+        nm.appendChild(el('b',null, isForm ? (node.form.title||'Lead form') : (node.title||'Untitled video')));
+        nm.appendChild(el('code',null,'#'+node.id));
+        row.appendChild(nm);
+        var ctl=el('div','ctl');
+        ctl.appendChild(mkBtn('&#9650;','tiny',function(e){e.stopPropagation();move(i,-1);}));
+        ctl.appendChild(mkBtn('&#9660;','tiny',function(e){e.stopPropagation();move(i,1);}));
+        ctl.appendChild(mkBtn('&#10005;','tiny danger',function(e){e.stopPropagation();removeNode(i);}));
+        row.appendChild(ctl);
+        row.addEventListener('click',function(){ state.selected=i; renderNodeList(); renderNodeEditor(); });
+        list.appendChild(row);
+      });
+    }
+    function mkBtn(html,cls,fn){ var b=document.createElement('button'); b.className=cls; b.innerHTML=html; b.addEventListener('click',fn); return b; }
+
+    function move(i,dir){ var j=i+dir; var pl=state.project.playlist; if(j<0||j>=pl.length) return;
+      var t=pl[i]; pl[i]=pl[j]; pl[j]=t; if(state.selected===i)state.selected=j; else if(state.selected===j)state.selected=i;
+      onChange(true); }
+    function removeNode(i){ var removed=state.project.playlist[i];
+      state.project.playlist.splice(i,1);
+      // clear references to the removed id
+      clearRefs(removed.id);
+      if(state.selected>=state.project.playlist.length) state.selected=state.project.playlist.length-1;
+      onChange(true); }
+    function clearRefs(id){ state.project.playlist.forEach(function(n){
+      if(n.choices) n.choices.forEach(function(c){ if(c.goto===id) c.goto=''; });
+      if(n.form && n.form.goto===id) n.form.goto='';
+    }); }
+    function updateRefs(oldId,newId){ state.project.playlist.forEach(function(n){
+      if(n.choices) n.choices.forEach(function(c){ if(c.goto===oldId) c.goto=newId; });
+      if(n.form && n.form.goto===oldId) n.form.goto=newId;
+    }); }
+
+    function addVideo(){ var id=uid('video');
+      state.project.playlist.push({id:id,title:'New video',description:'',src:'',poster:'',badge:'',choicesPrompt:'',cta:[],choices:[]});
+      state.selected=state.project.playlist.length-1; onChange(true); }
+    function addForm(){ var id=uid('form');
+      state.project.playlist.push({id:id,form:{title:'Get the full demo',description:'',submitLabel:'Continue',note:'',action:'',goto:'',
+        fields:[{name:'email',label:'Work email',type:'email',required:true,placeholder:'you@company.com'}]}});
+      state.selected=state.project.playlist.length-1; onChange(true); }
+
+    /* ---- node editor ---- */
+    function nodeOptions(currentId, includeNone){
+      var sel=document.createElement('select');
+      if(includeNone){ var o0=document.createElement('option'); o0.value=''; o0.textContent='(none)'; sel.appendChild(o0); }
+      var ext=document.createElement('option'); ext.value='__ext__'; ext.textContent='🔗 External URL'; if(!includeNone) sel.appendChild(ext);
+      state.project.playlist.forEach(function(n){ if(n.id===currentId) return;
+        var o=document.createElement('option'); o.value=n.id;
+        o.textContent='#'+n.id+(n.title?(' — '+n.title):(n.form?' — '+(n.form.title||'form'):'')); sel.appendChild(o); });
+      return sel;
+    }
+
+    function renderNodeEditor(){
+      var box=$('#node-editor'); box.innerHTML='';
+      var node=state.project.playlist[state.selected];
+      if(!node){ box.appendChild(el('div','empty','Select a step to edit it.')); return; }
+      box.appendChild(el('div','panel-head', node.form?'Edit lead form':'Edit video'));
+
+      // ID (shared)
+      var idIn=textInput(node.id);
+      idIn.addEventListener('change',function(){
+        var nv=uid(idIn.value); var old=node.id; if(nv===old){idIn.value=nv;return;}
+        node.id=nv; updateRefs(old,nv); idIn.value=nv; onChange(true);
+      });
+      box.appendChild(field('Step id (used by branches)', idIn));
+
+      if(node.form){ renderFormEditor(box,node); }
+      else { renderVideoEditor(box,node); }
+    }
+
+    function bindInput(input, obj, key){ input.addEventListener('input',function(){ obj[key]=input.value; onChange(); }); }
+
+    function renderVideoEditor(box,node){
+      var t=textInput(node.title); bindInput(t,node,'title'); box.appendChild(field('Title', t));
+      var d=document.createElement('textarea'); d.value=node.description||''; bindInput(d,node,'description'); box.appendChild(field('Description', d));
+      var src=textInput(node.src,'https://… .mp4, YouTube or Vimeo URL','url'); bindInput(src,node,'src'); box.appendChild(field('Video URL', src));
+      var po=textInput(node.poster,'https://… poster image','url'); bindInput(po,node,'poster'); box.appendChild(field('Poster image URL', po));
+      var bd=textInput(node.badge,'e.g. 1:30 · Overview'); bindInput(bd,node,'badge'); box.appendChild(field('Badge', bd));
+
+      // CTAs
+      box.appendChild(subHead('Call-to-action buttons (link out)', function(){ node.cta=node.cta||[]; node.cta.push({label:'Learn more',url:''}); onChange(true); }));
+      (node.cta||[]).forEach(function(c,ci){
+        var wrap=el('div','sub'); var r=el('div','row');
+        var lab=textInput(c.label,'Button label'); lab.addEventListener('input',function(){c.label=lab.value;onChange();});
+        var url=textInput(c.url,'https://…','url'); url.addEventListener('input',function(){c.url=url.value;onChange();});
+        r.appendChild(field('Label',lab)); r.appendChild(field('URL',url));
+        wrap.appendChild(r);
+        wrap.appendChild(mkBtn('Remove','tiny danger',function(){ node.cta.splice(ci,1); onChange(true); }));
+        box.appendChild(wrap);
+      });
+
+      // Choices (branching)
+      box.appendChild(subHead('Branching choices (shown when the clip ends)', function(){ node.choices=node.choices||[]; node.choices.push({label:'Next',goto:''}); onChange(true); }));
+      var cp=textInput(node.choicesPrompt,'e.g. Which best describes you?'); bindInput(cp,node,'choicesPrompt');
+      if((node.choices||[]).length) box.appendChild(field('Choices heading', cp));
+      (node.choices||[]).forEach(function(c,ci){
+        var wrap=el('div','sub');
+        var lab=textInput(c.label,'Choice label'); lab.addEventListener('input',function(){c.label=lab.value;onChange();});
+        wrap.appendChild(field('Label',lab));
+        var sel=nodeOptions(node.id,false);
+        sel.value = c.url!=null && c.goto==null ? '__ext__' : (c.goto||'__ext__');
+        if(c.url!=null && (c.goto==null||c.goto==='')) sel.value='__ext__';
+        else sel.value=c.goto||(sel.options[0]?sel.options[0].value:'');
+        var urlIn=textInput(c.url,'https://…','url');
+        function syncChoice(){
+          if(sel.value==='__ext__'){ c.goto=null; c.url=urlIn.value||''; urlIn.parentNode.style.display=''; }
+          else { c.goto=sel.value; delete c.url; urlIn.parentNode.style.display='none'; }
+          onChange();
+        }
+        sel.addEventListener('change',syncChoice);
+        urlIn.addEventListener('input',function(){ c.url=urlIn.value; onChange(); });
+        wrap.appendChild(field('Goes to', sel));
+        var urlFld=field('External URL', urlIn); wrap.appendChild(urlFld);
+        urlFld.style.display = (sel.value==='__ext__')?'':'none';
+        wrap.appendChild(mkBtn('Remove','tiny danger',function(){ node.choices.splice(ci,1); onChange(true); }));
+        box.appendChild(wrap);
+      });
+      box.appendChild(el('p','hint','A clip with choices won’t loop, so it can reach its end and reveal them.'));
+    }
+
+    function renderFormEditor(box,node){
+      var f=node.form;
+      var t=textInput(f.title); bindInput(t,f,'title'); box.appendChild(field('Form title', t));
+      var d=document.createElement('textarea'); d.value=f.description||''; bindInput(d,f,'description'); box.appendChild(field('Description', d));
+      var sl=textInput(f.submitLabel,'Continue'); bindInput(sl,f,'submitLabel'); box.appendChild(field('Submit button label', sl));
+      var nt=textInput(f.note,'e.g. We never share your details'); bindInput(nt,f,'note'); box.appendChild(field('Fine print', nt));
+      var ac=textInput(f.action,'https://your-endpoint (optional POST)','url'); bindInput(ac,f,'action'); box.appendChild(field('Submit to URL (optional)', ac));
+      var gsel=nodeOptions(node.id,true); gsel.value=f.goto||'';
+      gsel.addEventListener('change',function(){ f.goto=gsel.value; onChange(); });
+      box.appendChild(field('After submit, go to', gsel));
+
+      box.appendChild(subHead('Form fields', function(){ f.fields=f.fields||[]; f.fields.push({name:'',label:'New field',type:'text',required:false,placeholder:''}); onChange(true); }));
+      (f.fields||[]).forEach(function(fld,fi){
+        var wrap=el('div','sub');
+        var r=el('div','row');
+        var lab=textInput(fld.label,'Label'); lab.addEventListener('input',function(){ fld.label=lab.value; if(!fld.name) {} onChange(); });
+        var nm=textInput(fld.name,'name (optional)'); nm.addEventListener('input',function(){ fld.name=nm.value; onChange(); });
+        r.appendChild(field('Label',lab)); r.appendChild(field('Field name',nm));
+        wrap.appendChild(r);
+        var r2=el('div','row');
+        var ty=document.createElement('select');
+        ['text','email','tel','number','textarea','select'].forEach(function(o){ var op=document.createElement('option'); op.value=o; op.textContent=o; ty.appendChild(op); });
+        ty.value=fld.type||'text'; ty.addEventListener('change',function(){ fld.type=ty.value; onChange(); });
+        var ph=textInput(fld.placeholder,'placeholder'); ph.addEventListener('input',function(){ fld.placeholder=ph.value; onChange(); });
+        r2.appendChild(field('Type',ty)); r2.appendChild(field('Placeholder',ph));
+        wrap.appendChild(r2);
+        var req=el('label','check'); var rc=document.createElement('input'); rc.type='checkbox'; rc.checked=!!fld.required;
+        rc.addEventListener('change',function(){ fld.required=rc.checked; onChange(); });
+        req.appendChild(rc); req.appendChild(document.createTextNode('Required'));
+        wrap.appendChild(req);
+        wrap.appendChild(mkBtn('Remove','tiny danger',function(){ f.fields.splice(fi,1); onChange(true); }));
+        box.appendChild(wrap);
+      });
+    }
+
+    function subHead(text, addFn){ var h=el('div','panel-head'); h.style.marginTop='14px';
+      h.appendChild(el('span','grow',text)); h.appendChild(mkBtn('+ Add','tiny',addFn)); return h; }
+
+    /* ---- build config (clean) ---- */
+    function clean(node){
+      if(node.form){
+        var f=node.form, of={};
+        ['title','description','submitLabel','note','action','goto'].forEach(function(k){ if(f[k]) of[k]=f[k]; });
+        of.fields=(f.fields||[]).filter(function(x){return x.label||x.name;}).map(function(x){
+          var o={name:x.name||(x.label||'field').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''),label:x.label||x.name,type:x.type||'text'};
+          if(x.required)o.required=true; if(x.placeholder)o.placeholder=x.placeholder; if(x.type==='select'&&x.options)o.options=x.options; return o;
+        });
+        return { id:node.id, form:of };
+      }
+      var o={ id:node.id };
+      ['title','description','src','poster','badge','mime','type','videoId','choicesPrompt'].forEach(function(k){ if(node[k])o[k]=node[k]; });
+      var cta=(node.cta||[]).filter(function(c){return c.label&&c.url;});
+      if(cta.length) o.cta=cta.map(function(c){var x={label:c.label,url:c.url}; if(c.newTab===false)x.newTab=false; return x;});
+      var ch=(node.choices||[]).filter(function(c){return c.label&&(c.goto||c.url);});
+      if(ch.length) o.choices=ch.map(function(c){ return c.goto?{label:c.label,goto:c.goto}:{label:c.label,url:c.url}; });
+      return o;
+    }
+    function buildConfig(){
+      var s=state.project.settings;
+      var cfg={ accent:s.accent, autoplay:!!s.autoplay, muted:!!s.muted, loop:!!s.loop };
+      if(s.analytics==='gtm') cfg.gtm=true;
+      cfg.playlist=state.project.playlist.map(clean);
+      return cfg;
+    }
+
+    /* ---- preview ---- */
+    function renderPreview(){
+      var host=$('#preview'); host.innerHTML='';
+      var mountEl=document.createElement('div'); host.appendChild(mountEl);
+      if(!window.InlineVideo){ host.appendChild(el('div','empty','Loading preview…')); setTimeout(renderPreview,150); return; }
+      var cfg=buildConfig();
+      cfg.onEvent=function(name,detail){ /* preview: swallow analytics */ };
+      try{ window.InlineVideo.mount(mountEl,cfg); }
+      catch(e){ host.appendChild(el('div','empty','Add a video URL to see the preview.')); }
+    }
+
+    /* ---- snippet / export ---- */
+    var CLOSE='<'+'/script>';
+    function buildSnippet(){
+      var s=state.project.settings;
+      var json=JSON.stringify(buildConfig(),null,2);
+      var L=[];
+      L.push('<div id="'+(s.elementId||'my-video')+'"><'+'/div>');
+      L.push('<script src="inline-video-plugin.js">'+CLOSE);
+      L.push('<script>');
+      if(s.analytics==='gtag'){
+        L.push('  var ivpConfig = '+json+';');
+        L.push('  ivpConfig.onEvent = function(name, detail){ if(window.gtag) gtag("event","inlinevideo_"+name, detail); };');
+        L.push('  InlineVideo.mount("#'+(s.elementId||'my-video')+'", ivpConfig);');
+      } else {
+        L.push('  InlineVideo.mount("#'+(s.elementId||'my-video')+'", '+json+');');
+      }
+      L.push(CLOSE);
+      return L.join('\n');
+    }
+    function updateSnippet(){ $('#snippet-out').value=buildSnippet(); }
+
+    function pluginForInline(){ return PLUGIN_SRC.replace(/<\/script>/g,'<\\/script>'); }
+    function buildStandalone(){
+      var s=state.project.settings, json=JSON.stringify(buildConfig(),null,2);
+      var mount = s.analytics==='gtag'
+        ? ('var ivpConfig = '+json+';\n      ivpConfig.onEvent=function(n,d){ if(window.gtag) gtag("event","inlinevideo_"+n,d); };\n      InlineVideo.mount("#'+(s.elementId||'my-video')+'", ivpConfig);')
+        : ('InlineVideo.mount("#'+(s.elementId||'my-video')+'", '+json+');');
+      return [
+        '<!DOCTYPE html>','<html lang="en"><head><meta charset="UTF-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+        '<title>Video</title>',
+        '<style>body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f6f8fc}',
+        '.wrap{max-width:920px;margin:0 auto;padding:40px 20px}</style></head><body>',
+        '<div class="wrap"><div id="'+(s.elementId||'my-video')+'"><'+'/div><'+'/div>',
+        '<script>'+pluginForInline()+CLOSE,
+        '<script>'+mount+'\n'+CLOSE,
+        '<'+'/body><'+'/html>'
+      ].join('\n');
+    }
+
+    function download(filename, text, type){
+      var blob=new Blob([text],{type:type||'text/plain'}); var url=URL.createObjectURL(blob);
+      var a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+      document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(url);},1000);
+    }
+    function copy(text){
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(function(){toast('Copied to clipboard');},function(){fallbackCopy(text);}); }
+      else fallbackCopy(text);
+    }
+    function fallbackCopy(text){ var ta=$('#snippet-out'); ta.value=text; ta.focus(); ta.select();
+      try{ document.execCommand('copy'); toast('Copied to clipboard'); }catch(e){ toast('Press Ctrl/Cmd+C to copy'); } }
+
+    /* ---- top-bar actions ---- */
+    $('#btn-new').addEventListener('click',function(){ if(confirm('Start a new, empty project? Your current work will be cleared from this browser.')){ state.project={settings:defaultProject().settings,playlist:[]}; state.selected=0; renderAll(); } });
+    $('#add-video').addEventListener('click',addVideo);
+    $('#add-form').addEventListener('click',addForm);
+    $('#btn-refresh').addEventListener('click',renderPreview);
+    $('#btn-snippet').addEventListener('click',function(){ copy(buildSnippet()); });
+    $('#btn-copy2').addEventListener('click',function(){ copy(buildSnippet()); });
+    $('#btn-save').addEventListener('click',function(){ download('inlinevideo-project.json', JSON.stringify(state.project,null,2),'application/json'); toast('Project downloaded'); });
+    $('#btn-standalone').addEventListener('click',function(){ download((state.project.settings.elementId||'video')+'.html', buildStandalone(),'text/html'); toast('Standalone page downloaded'); });
+    $('#file-load').addEventListener('change',function(e){
+      var file=e.target.files[0]; if(!file) return; var r=new FileReader();
+      r.onload=function(){ try{ var p=JSON.parse(r.result); if(!p.playlist) throw 0; state.project=p; state.selected=0; renderAll(); toast('Project loaded'); }
+        catch(err){ toast('Could not read that project file'); } };
+      r.readAsText(file); e.target.value='';
+    });
+
+    /* ---- initial render ---- */
+    function renderAll(){ renderSettings(); renderNodeList(); renderNodeEditor(); updateSnippet(); renderPreview(); }
+    renderAll();
+  })();
+  </script>
+</body>
+</html>

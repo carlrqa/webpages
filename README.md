@@ -43,6 +43,22 @@ No build step, no framework, no dependencies. One JS file, one `<div>`.
 </script>
 ```
 
+### Option C — build it visually (no code at all)
+
+Open **`editor.html`** in your browser (or host it on your site). It's a
+self-contained visual flow builder:
+
+- add video and lead-form steps, set titles / URLs / posters / CTAs,
+- wire up branching choices with dropdowns (step → step),
+- tweak accent colour and analytics,
+- **see a live preview** as you edit,
+- then **Copy embed snippet** (to paste on a page), **Download standalone page**
+  (a single ready-to-host HTML file), or **Download project** (a `.json` you can
+  re-open later to keep editing).
+
+No login, no server, no database — your work is saved in the browser and as
+downloadable files, so it hosts on Netlify as-is.
+
 ### Option B — declarative (no JS to write)
 
 Put the config straight on the element as JSON. The plugin auto-mounts every
