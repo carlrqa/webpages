@@ -61,6 +61,18 @@
     .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#0b1020;color:#fff;
       padding:10px 18px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
     .toast.show{opacity:1}
+    .howto-wrap{max-width:1280px;margin:0 auto;padding:18px 20px 0}
+    .howto{background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:4px 16px}
+    .howto summary{cursor:pointer;font-weight:800;padding:10px 0;list-style:none}
+    .howto summary::-webkit-details-marker{display:none}
+    .howto summary::before{content:"▸ ";color:var(--accent)}
+    .howto[open] summary::before{content:"▾ "}
+    .howto ol{margin:6px 0 14px;padding-left:20px}
+    .howto li{margin:8px 0;line-height:1.5}
+    .howto b{color:var(--accent)}
+    .howto .stage-label{display:inline-block;background:#eef3ff;color:var(--accent);font-size:.72rem;font-weight:700;
+      padding:2px 8px;border-radius:999px;margin-right:6px}
+    .howto code{background:#eef1f7;padding:1px 5px;border-radius:5px;font-size:.85em}
   </style>
 </head>
 <body>
@@ -74,6 +86,17 @@
       <button id="btn-standalone" class="primary">Download standalone page</button>
     </div>
   </header>
+
+  <div class="howto-wrap">
+    <details class="howto" open>
+      <summary>How to use this editor</summary>
+      <ol>
+        <li><span class="stage-label">1 · Build</span> On the <b>left</b>, set your options and add steps. For each <b>Video</b> step choose a <b>Video source</b> — paste a hosted link (YouTube/Vimeo/MP4) or pick a <b>local file</b> to upload alongside the page. Add <b>branching choices</b> to send viewers to other steps or webpages. The <b>right</b> shows a live preview.</li>
+        <li><span class="stage-label">2 · Publish</span> Click <b>Download standalone page</b> — this is your video page (one HTML file). Upload it (plus any local video files) to your host (e.g. Netlify). It now has a web address like <code>https://your-site.netlify.app/video.html</code>. Put that address in the <b>Hosted page URL</b> field.</li>
+        <li><span class="stage-label">3 · Embed</span> Click <b>Copy embed snippet</b> (bottom-right) and paste that one line into a Text/HTML block on your CMS page. Done.</li>
+      </ol>
+    </details>
+  </div>
 
   <main class="layout">
     <section class="col-edit">
@@ -800,6 +823,8 @@
       };
     }
     var state = { project: load() || defaultProject(), selected: 0 };
+    // In-memory preview URLs for locally-picked video files (not persisted).
+    var localPreviews = {};
 
     function load(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)); }catch(e){ return null; } }
     function persist(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state.project)); }catch(e){} }
@@ -838,7 +863,7 @@
 
       var idIn=textInput(s.elementId,'my-video');
       idIn.addEventListener('input',function(){ s.elementId=idIn.value.trim()||'my-video'; updateSnippet(); persist(); });
-      box.appendChild(field('Element id (where it mounts on your page)', idIn));
+      box.appendChild(field('Page name (the standalone file is saved as <name>.html — e.g. "video")', idIn));
 
       var em=document.createElement('select');
       [['iframe','Iframe embed (recommended — works in django CMS / page builders)'],['script','Inline script (only if your CMS allows raw <script>)']].forEach(function(o){
@@ -972,7 +997,33 @@
     function renderVideoEditor(box,node){
       var t=textInput(node.title); bindInput(t,node,'title'); box.appendChild(field('Title', t));
       var d=document.createElement('textarea'); d.value=node.description||''; bindInput(d,node,'description'); box.appendChild(field('Description', d));
-      var src=textInput(node.src,'https://… .mp4, YouTube or Vimeo URL','url'); bindInput(src,node,'src'); box.appendChild(field('Video URL', src));
+      // Video source: hosted URL vs a local file uploaded alongside the page.
+      var modeSel=document.createElement('select');
+      [['url','Hosted — paste a YouTube / Vimeo / MP4 link'],['local','Local file — upload it alongside the page']].forEach(function(o){
+        var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; modeSel.appendChild(op);
+      });
+      modeSel.value=node.srcMode||'url';
+      modeSel.addEventListener('change',function(){ node.srcMode=modeSel.value; onChange(true); });
+      box.appendChild(field('Video source', modeSel));
+
+      if((node.srcMode||'url')==='local'){
+        var picker=document.createElement('input'); picker.type='file'; picker.accept='video/*';
+        var pathIn=textInput(node.src,'e.g. intro.mp4 (the file name you upload)');
+        picker.addEventListener('change',function(){
+          var f=picker.files&&picker.files[0]; if(!f) return;
+          node.src=f.name; pathIn.value=f.name;
+          if(localPreviews[node.id]) { try{URL.revokeObjectURL(localPreviews[node.id]);}catch(e){} }
+          localPreviews[node.id]=URL.createObjectURL(f);
+          onChange();
+        });
+        pathIn.addEventListener('input',function(){ node.src=pathIn.value; onChange(); });
+        box.appendChild(field('Choose video file (for preview)', picker));
+        box.appendChild(field('File name (must match the file you upload to Netlify)', pathIn));
+        box.appendChild(el('p','hint','Upload this video file to Netlify in the SAME folder as the page. The live preview here works only after you pick the file, and won’t survive a reload (re-pick it if needed).'));
+      } else {
+        var src=textInput(node.src,'https://… .mp4, YouTube or Vimeo URL','url'); bindInput(src,node,'src');
+        box.appendChild(field('Video URL', src));
+      }
       var po=textInput(node.poster,'https://… poster image','url'); bindInput(po,node,'poster'); box.appendChild(field('Poster image URL', po));
       var bd=textInput(node.badge,'e.g. 1:30 · Overview'); bindInput(bd,node,'badge'); box.appendChild(field('Badge', bd));
 
@@ -1088,6 +1139,10 @@
       var mountEl=document.createElement('div'); host.appendChild(mountEl);
       if(!window.InlineVideo){ host.appendChild(el('div','empty','Loading preview…')); setTimeout(renderPreview,150); return; }
       var cfg=buildConfig();
+      // Swap local-file paths for their in-memory preview URLs so they play here.
+      state.project.playlist.forEach(function(n,i){
+        if((n.srcMode||'url')==='local' && localPreviews[n.id] && cfg.playlist[i]) cfg.playlist[i].src=localPreviews[n.id];
+      });
       cfg.onEvent=function(name,detail){ /* preview: swallow analytics */ };
       try{ window.InlineVideo.mount(mountEl,cfg); }
       catch(e){ host.appendChild(el('div','empty','Add a video URL to see the preview.')); }
