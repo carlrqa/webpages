@@ -782,7 +782,7 @@
     /* ---- state ---- */
     function defaultProject(){
       return {
-        settings:{ elementId:'my-video', pluginUrl:'inline-video-plugin.js', accent:'#2563eb', autoplay:true, muted:true, loop:true, analytics:'none' },
+        settings:{ elementId:'my-video', embedMethod:'iframe', hostedUrl:'', iframeHeight:700, pluginUrl:'inline-video-plugin.js', accent:'#2563eb', autoplay:true, muted:true, loop:true, analytics:'none' },
         playlist:[
           { id:'intro', title:'Welcome — choose your path', description:'Watch the intro, then pick a branch.',
             src:'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
@@ -840,10 +840,28 @@
       idIn.addEventListener('input',function(){ s.elementId=idIn.value.trim()||'my-video'; updateSnippet(); persist(); });
       box.appendChild(field('Element id (where it mounts on your page)', idIn));
 
-      var purl=textInput(s.pluginUrl,'https://your-site.netlify.app/inline-video-plugin.js');
-      purl.addEventListener('input',function(){ s.pluginUrl=purl.value.trim(); updateSnippet(); persist(); });
-      box.appendChild(field('Plugin URL (full https:// link to where you host inline-video-plugin.js)', purl));
-      box.appendChild(el('p','hint','Embedding on a different domain than where the file is hosted? Use the full https:// URL, not a relative path.'));
+      var em=document.createElement('select');
+      [['iframe','Iframe embed (recommended — works in django CMS / page builders)'],['script','Inline script (only if your CMS allows raw <script>)']].forEach(function(o){
+        var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; em.appendChild(op);
+      });
+      em.value=s.embedMethod||'iframe';
+      em.addEventListener('change',function(){ s.embedMethod=em.value; renderSettings(); updateSnippet(); persist(); });
+      box.appendChild(field('Embed method', em));
+
+      if((s.embedMethod||'iframe')==='iframe'){
+        var hu=textInput(s.hostedUrl,'https://your-site.netlify.app/'+(s.elementId||'my-video')+'.html','url');
+        hu.addEventListener('input',function(){ s.hostedUrl=hu.value.trim(); updateSnippet(); persist(); });
+        box.appendChild(field('Hosted page URL (the standalone page you upload to Netlify)', hu));
+        var ih=textInput(String(s.iframeHeight||700),'700','number');
+        ih.addEventListener('input',function(){ s.iframeHeight=parseInt(ih.value,10)||700; updateSnippet(); persist(); });
+        box.appendChild(field('Iframe height (px)', ih));
+        box.appendChild(el('p','hint','Workflow: 1) Download standalone page  2) upload it to Netlify  3) paste the URL above  4) copy the iframe snippet into a CMS Text/HTML plugin.'));
+      } else {
+        var purl=textInput(s.pluginUrl,'https://your-site.netlify.app/inline-video-plugin.js');
+        purl.addEventListener('input',function(){ s.pluginUrl=purl.value.trim(); updateSnippet(); persist(); });
+        box.appendChild(field('Plugin URL (full https:// link to where you host inline-video-plugin.js)', purl));
+        box.appendChild(el('p','hint','Heads up: many CMSs (incl. django CMS) strip raw <script> tags on save. If yours does, use the Iframe method instead.'));
+      }
 
       var acc=document.createElement('input'); acc.type='color'; acc.value=s.accent||'#2563eb';
       acc.style.width='52px'; acc.style.height='38px'; acc.style.padding='2px';
@@ -1079,6 +1097,10 @@
     var CLOSE='<'+'/script>';
     function buildSnippet(){
       var s=state.project.settings;
+      if((s.embedMethod||'iframe')==='iframe'){
+        var url=s.hostedUrl||('https://your-site.netlify.app/'+(s.elementId||'my-video')+'.html');
+        return '<iframe src="'+url+'"\n  width="100%" height="'+(s.iframeHeight||700)+'" frameborder="0" loading="lazy"\n  title="Video" style="border:0;display:block"><'+'/iframe>';
+      }
       var json=JSON.stringify(buildConfig(),null,2);
       var L=[];
       L.push('<div id="'+(s.elementId||'my-video')+'"><'+'/div>');

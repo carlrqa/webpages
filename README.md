@@ -227,6 +227,29 @@ InlineVideo.mount('#hero', {
 
 ---
 
+## Embedding in a CMS (django CMS, WordPress, page builders)
+
+Many CMSs **strip raw `<script>` tags** when you save a page (django CMS's Text
+plugin does). If yours does, don't fight it — use the **iframe method**:
+
+1. In the editor, build your flow and click **Download standalone page**
+   (`video.html`).
+2. Upload that file to a static host (e.g. Netlify) → you get a URL like
+   `https://your-site.netlify.app/video.html`.
+3. Paste the URL into the editor's **Hosted page URL** field and copy the
+   **iframe snippet** it generates:
+
+   ```html
+   <iframe src="https://your-site.netlify.app/video.html"
+     width="100%" height="700" frameborder="0" loading="lazy"
+     title="Video" style="border:0;display:block"></iframe>
+   ```
+4. Drop that one line into a CMS Text / Custom-HTML block. The iframe is fully
+   isolated, so it can't conflict with the host page's CSS/JS/analytics.
+
+Use the **inline script** method only when you control the page HTML directly
+and raw `<script>` survives (static sites, theme footers, etc.).
+
 ## Notes
 
 - Autoplay only works **muted** — this is a browser policy, not a plugin limit.
