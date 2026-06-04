@@ -782,7 +782,7 @@
     /* ---- state ---- */
     function defaultProject(){
       return {
-        settings:{ elementId:'my-video', accent:'#2563eb', autoplay:true, muted:true, loop:true, analytics:'none' },
+        settings:{ elementId:'my-video', pluginUrl:'inline-video-plugin.js', accent:'#2563eb', autoplay:true, muted:true, loop:true, analytics:'none' },
         playlist:[
           { id:'intro', title:'Welcome — choose your path', description:'Watch the intro, then pick a branch.',
             src:'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
@@ -839,6 +839,11 @@
       var idIn=textInput(s.elementId,'my-video');
       idIn.addEventListener('input',function(){ s.elementId=idIn.value.trim()||'my-video'; updateSnippet(); persist(); });
       box.appendChild(field('Element id (where it mounts on your page)', idIn));
+
+      var purl=textInput(s.pluginUrl,'https://your-site.netlify.app/inline-video-plugin.js');
+      purl.addEventListener('input',function(){ s.pluginUrl=purl.value.trim(); updateSnippet(); persist(); });
+      box.appendChild(field('Plugin URL (full https:// link to where you host inline-video-plugin.js)', purl));
+      box.appendChild(el('p','hint','Embedding on a different domain than where the file is hosted? Use the full https:// URL, not a relative path.'));
 
       var acc=document.createElement('input'); acc.type='color'; acc.value=s.accent||'#2563eb';
       acc.style.width='52px'; acc.style.height='38px'; acc.style.padding='2px';
@@ -1077,7 +1082,7 @@
       var json=JSON.stringify(buildConfig(),null,2);
       var L=[];
       L.push('<div id="'+(s.elementId||'my-video')+'"><'+'/div>');
-      L.push('<script src="inline-video-plugin.js">'+CLOSE);
+      L.push('<script src="'+(s.pluginUrl||'inline-video-plugin.js')+'">'+CLOSE);
       L.push('<script>');
       if(s.analytics==='gtag'){
         L.push('  var ivpConfig = '+json+';');
